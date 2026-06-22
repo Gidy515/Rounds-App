@@ -1,0 +1,2719 @@
+{
+  "address": "7BBvnkQ4AKMFU6EfWvScSqi69eu9TjLoDzpmzG8ZeFhN",
+  "metadata": {
+    "name": "rounds_protocol",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "cancel_circle",
+      "discriminator": [
+        235,
+        90,
+        15,
+        94,
+        27,
+        245,
+        101,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "The caller — must be a joined member of this circle.",
+            "Receives their collateral and contribution back."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Open or already Cancelled.",
+            "Open: first caller transitions it to Cancelled.",
+            "Cancelled: subsequent callers can still recover funds.",
+            "",
+            "Cancellation conditions checked in handler —",
+            "not in account constraints because they involve",
+            "multiple conditions with different logic paths."
+          ],
+          "writable": true
+        },
+        {
+          "name": "caller_member_account",
+          "docs": [
+            "Caller's MemberAccount — proves they are a legitimate",
+            "joined member of this circle.",
+            "Seeds validate both circle and member pubkey.",
+            "claimed flag checked and set to prevent double-refund."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "caller"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller_collateral_record",
+          "docs": [
+            "Caller's CollateralRecord — used to calculate",
+            "claimable collateral and prevent double-refund.",
+            "claimed flag set here atomically with the transfer."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  114,
+                  101,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "caller"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "CollateralVault — returns caller's locked collateral.",
+            "Seeds: [b\"collateral_vault\", circle_account]",
+            "Authority: circle_account PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot_vault",
+          "docs": [
+            "PotVault — returns caller's first round contribution.",
+            "Seeds: [b\"pot_vault\", circle_account]",
+            "Authority: circle_account PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller_token_account",
+          "docs": [
+            "Caller's USDC token account — receives all returned funds.",
+            "Validated against the circle's configured mint."
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_collateral",
+      "discriminator": [
+        55,
+        78,
+        194,
+        172,
+        196,
+        18,
+        230,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "docs": [
+            "The claiming member. Must be the owner of the",
+            "MemberAccount being claimed against."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Completed or Cancelled.",
+            "No other state allows collateral claims."
+          ]
+        },
+        {
+          "name": "member_account",
+          "docs": [
+            "MemberAccount — validated as belonging to this member",
+            "in this circle. Confirms this wallet is a legitimate",
+            "participant with a collateral record to claim."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_record",
+          "docs": [
+            "CollateralRecord — the permanent audit trail.",
+            "Provides total_locked and total_slashed for the",
+            "claimable amount calculation.",
+            "claimed flag set to true here to prevent double-claim."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  114,
+                  101,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "CollateralVault — source of the collateral return.",
+            "Seeds: [b\"collateral_vault\", circle_account]",
+            "Authority: circle_account PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "member_token_account",
+          "docs": [
+            "Member's USDC token account — receives the collateral.",
+            "Validated against the circle's configured mint."
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_circle",
+      "discriminator": [
+        186,
+        99,
+        49,
+        131,
+        31,
+        51,
+        13,
+        198
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "docs": [
+            "The circle creator — automatically becomes position 1.",
+            "Pays rent for CircleAccount, CollateralVault, PotVault."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — read to check is_paused.",
+            "Seeds: [b\"config\"]"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount PDA — the circle's source of truth.",
+            "",
+            "Seeds are derived from the circle's parameters:",
+            "[b\"circle\", contribution_amount, total_members,",
+            "frequency as u8, usdc_mint pubkey]",
+            "",
+            "This seed fingerprint is the duplicate prevention",
+            "mechanism. Two circles with identical parameters",
+            "resolve to the same PDA address. Anchor's `init`",
+            "constraint will reject the transaction if the",
+            "account already exists — meaning an open circle",
+            "with these exact settings already exists.",
+            "",
+            "If you hit this error, join that circle instead."
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "CollateralVault — USDC token account PDA.",
+            "Holds all member collateral for this circle.",
+            "Seeds: [b\"collateral_vault\", circle_account pubkey]",
+            "Authority: circle_account PDA — program controlled.",
+            "Never touched during normal operation.",
+            "Only moves on default deduction or circle completion."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot_vault",
+          "docs": [
+            "PotVault — USDC token account PDA.",
+            "Accumulates cycle contributions before disbursement.",
+            "Seeds: [b\"pot_vault\", circle_account pubkey]",
+            "Authority: circle_account PDA — program controlled.",
+            "Fills each cycle, zeroes completely after disburse_pot."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — validated against token program.",
+            "Stored in CircleAccount so every subsequent instruction",
+            "can verify incoming token accounts against this mint."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "contribution_amount",
+          "type": "u64"
+        },
+        {
+          "name": "total_members",
+          "type": "u8"
+        },
+        {
+          "name": "frequency",
+          "type": {
+            "defined": {
+              "name": "PayoutFrequency"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "disburse_pot",
+      "discriminator": [
+        86,
+        64,
+        53,
+        44,
+        231,
+        34,
+        253,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "The caller — any wallet. No special permissions.",
+            "Does not pay rent — no new accounts created here."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused.",
+            "Also provides protocol_fee_bps for fee calculation."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Active.",
+            "current_cycle incremented here.",
+            "cycle_deadline_slot updated here.",
+            "State transitions to Completed on final cycle."
+          ],
+          "writable": true
+        },
+        {
+          "name": "payment_record",
+          "docs": [
+            "PaymentRecord for the current cycle.",
+            "All active member bits must be set before",
+            "disbursement can proceed."
+          ]
+        },
+        {
+          "name": "recipient_member_account",
+          "docs": [
+            "Recipient MemberAccount.",
+            "Position must match current_cycle.",
+            "Must not have already received the pot."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "recipient"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "docs": [
+            "Recipient wallet — receives the net pot.",
+            "Validated via recipient_member_account.member check",
+            "in the handler to ensure the correct wallet is paid.",
+            "recipient_member_account.member"
+          ],
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "docs": [
+            "Recipient's USDC token account.",
+            "Net pot lands here. Validated against circle mint."
+          ],
+          "writable": true
+        },
+        {
+          "name": "pot_vault",
+          "docs": [
+            "PotVault — source of the disbursement.",
+            "Seeds: [b\"pot_vault\", circle_account]",
+            "Balance should equal active_members × contribution_amount",
+            "at this point."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "TreasuryVault — receives the protocol fee.",
+            "Seeds: [b\"treasury\", protocol_config]",
+            "TreasuryVault — receives the protocol fee.",
+            "Created in initialize_protocol as an ATA of protocol_config.",
+            "Validated here using associated_token constraints to match",
+            "how it was created."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_payment_record",
+      "discriminator": [
+        11,
+        34,
+        24,
+        160,
+        145,
+        36,
+        61,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "The caller — pays rent for the new PaymentRecord.",
+            "Can be any wallet. No permissions required."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Active.",
+            "The cycle parameter must match current_cycle —",
+            "you can only initialise the record for the",
+            "cycle that is currently active, not future ones."
+          ]
+        },
+        {
+          "name": "payment_record",
+          "docs": [
+            "PaymentRecord for the specified cycle — created here.",
+            "Seeds: [b\"payment\", circle_account, &[cycle]]",
+            "Initialised with paid_flags = 0.",
+            "Anchor's init constraint prevents creating a record",
+            "for a cycle that already has one."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cycle",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "initialize_protocol",
+      "discriminator": [
+        188,
+        233,
+        252,
+        106,
+        134,
+        146,
+        202,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "The deployer wallet.",
+            "Pays rent for ProtocolConfig and TreasuryVault.",
+            "Becomes the protocol admin stored in ProtocolConfig.",
+            "Must sign the transaction."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA — global singleton.",
+            "Seeds: [b\"config\"]",
+            "Created here. Will exist for the lifetime of the protocol.",
+            "init ensures this can only ever be called once —",
+            "if the account already exists the instruction reverts."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "TreasuryVault — USDC token account PDA.",
+            "Seeds: [b\"treasury\", protocol_config.key()]",
+            "Receives protocol fees from every disburse_pot call.",
+            "Owned by the protocol — no private key controls it.",
+            "Only withdraw_treasury (admin only) can move funds out."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint account.",
+            "Passed in so the TreasuryVault is initialised with",
+            "the correct mint. Validated to be a valid mint account."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "docs": [
+            "Required for token account rent exemption calculation."
+          ],
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "protocol_fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "join_circle",
+      "discriminator": [
+        231,
+        168,
+        235,
+        18,
+        99,
+        12,
+        22,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "writable": true
+        },
+        {
+          "name": "member_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  114,
+                  101,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "member_token_account",
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pause_protocol",
+      "discriminator": [
+        144,
+        95,
+        0,
+        107,
+        119,
+        39,
+        248,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Must be the admin stored in ProtocolConfig.",
+            "Only this keypair can pause the protocol."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — is_paused flipped to true here."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pay_contribution",
+      "discriminator": [
+        41,
+        86,
+        11,
+        120,
+        68,
+        31,
+        217,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "docs": [
+            "The paying member. Must be an active member",
+            "of this circle who has not been kicked."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Active.",
+            "Deadline slot must not have passed."
+          ]
+        },
+        {
+          "name": "member_account",
+          "docs": [
+            "MemberAccount — validated as belonging to this member",
+            "in this circle. Member must not be kicked."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "member"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payment_record",
+          "docs": [
+            "PaymentRecord for the current cycle.",
+            "Seeds: [b\"payment\", circle_account, current_cycle]",
+            "Bitmask updated here to mark this member as paid."
+          ],
+          "writable": true
+        },
+        {
+          "name": "member_token_account",
+          "docs": [
+            "Member's USDC token account.",
+            "Source of the contribution payment.",
+            "Validated against the circle's configured mint."
+          ],
+          "writable": true
+        },
+        {
+          "name": "pot_vault",
+          "docs": [
+            "PotVault — receives the contribution.",
+            "Seeds: [b\"pot_vault\", circle_account]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "process_default",
+      "discriminator": [
+        150,
+        255,
+        232,
+        158,
+        44,
+        241,
+        174,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "The caller — any wallet. No special permissions.",
+            "Does not pay rent — no new accounts are created here."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be Active.",
+            "active_members decremented if member is kicked."
+          ],
+          "writable": true
+        },
+        {
+          "name": "defaulter_member_account",
+          "docs": [
+            "Defaulting member's MemberAccount.",
+            "Seeds: [b\"member\", circle_account, defaulter]",
+            "Must not already be kicked."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "defaulter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "defaulter_collateral_record",
+          "docs": [
+            "Defaulting member's CollateralRecord.",
+            "total_slashed incremented here."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  114,
+                  101,
+                  99
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              },
+              {
+                "kind": "account",
+                "path": "defaulter"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payment_record",
+          "docs": [
+            "PaymentRecord for the current cycle.",
+            "Defaulter's bit is set here so disburse_pot",
+            "sees the cycle as fully covered and can proceed."
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "CollateralVault — source of the seized collateral.",
+            "Seeds: [b\"collateral_vault\", circle_account]",
+            "Authority: circle_account PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot_vault",
+          "docs": [
+            "PotVault — receives the seized collateral amount.",
+            "Seeds: [b\"pot_vault\", circle_account]",
+            "Authority: circle_account PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "circle_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "defaulter",
+          "docs": [
+            "The defaulting member's wallet.",
+            "Used only for PDA seed validation.",
+            "No funds go to or from this account in this instruction."
+          ]
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "start_circle",
+      "discriminator": [
+        53,
+        52,
+        187,
+        212,
+        217,
+        132,
+        253,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "The caller — pays rent for the cycle 1 PaymentRecord.",
+            "Can be any wallet. No special permissions required."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — checked for is_paused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "circle_account",
+          "docs": [
+            "CircleAccount — must be in Ready state.",
+            "Transitions to Active in this instruction.",
+            "current_cycle set to 1.",
+            "cycle_deadline_slot set to now + cycle_duration_slots."
+          ],
+          "writable": true
+        },
+        {
+          "name": "payment_record",
+          "docs": [
+            "PaymentRecord PDA for cycle 1 — created here.",
+            "",
+            "Seeds: [b\"payment\", circle_account, &[1u8]]",
+            "",
+            "Tracks who has paid in cycle 1 via a u64 bitmask.",
+            "Cycle 1 is special — all contributions were already",
+            "paid at join time via join_circle. So we initialise",
+            "paid_flags with ALL bits set for active members,",
+            "meaning cycle 1 is immediately ready for disburse_pot.",
+            "",
+            "This avoids requiring members to call pay_contribution",
+            "for a cycle they have already funded."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unpause_protocol",
+      "discriminator": [
+        183,
+        154,
+        5,
+        183,
+        105,
+        76,
+        87,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Must be the admin stored in ProtocolConfig."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — is_paused flipped to false here."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_config",
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Must be the admin stored in ProtocolConfig."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — protocol_fee_bps updated here."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_treasury",
+      "discriminator": [
+        40,
+        63,
+        122,
+        158,
+        144,
+        216,
+        83,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Must be the admin stored in ProtocolConfig."
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig — provides admin validation and",
+            "serves as TreasuryVault authority.",
+            "Seeds: [b\"config\"]"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "TreasuryVault — source of the withdrawal.",
+            "Seeds: [b\"treasury\", protocol_config]",
+            "Authority: protocol_config PDA."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "Destination token account — receives the withdrawn fees.",
+            "Must hold the same mint as TreasuryVault.",
+            "Admin chooses this address — can be any valid USDC ATA."
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "USDC mint — required by transfer_checked."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CircleAccount",
+      "discriminator": [
+        250,
+        53,
+        107,
+        210,
+        46,
+        226,
+        184,
+        190
+      ]
+    },
+    {
+      "name": "CollateralRecord",
+      "discriminator": [
+        165,
+        205,
+        175,
+        133,
+        48,
+        241,
+        124,
+        239
+      ]
+    },
+    {
+      "name": "MemberAccount",
+      "discriminator": [
+        173,
+        25,
+        100,
+        97,
+        192,
+        177,
+        84,
+        139
+      ]
+    },
+    {
+      "name": "PaymentRecord",
+      "discriminator": [
+        202,
+        168,
+        56,
+        249,
+        127,
+        226,
+        86,
+        226
+      ]
+    },
+    {
+      "name": "ProtocolConfig",
+      "discriminator": [
+        207,
+        91,
+        250,
+        28,
+        152,
+        179,
+        215,
+        209
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ProtocolPaused",
+      "msg": "The protocol is currently paused. Please try again later."
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Only the protocol admin can call this instruction."
+    },
+    {
+      "code": 6002,
+      "name": "FeeTooHigh",
+      "msg": "Protocol fee cannot exceed 10%."
+    },
+    {
+      "code": 6003,
+      "name": "CircleAlreadyOpen",
+      "msg": "A circle with these exact settings is already open and accepting members. Please join that circle instead."
+    },
+    {
+      "code": 6004,
+      "name": "InvalidMemberCount",
+      "msg": "Member count must be between 2 and 20."
+    },
+    {
+      "code": 6005,
+      "name": "ContributionTooLow",
+      "msg": "Contribution amount must be at least 1 USDC."
+    },
+    {
+      "code": 6006,
+      "name": "InvalidFrequency",
+      "msg": "Invalid payout frequency selected."
+    },
+    {
+      "code": 6007,
+      "name": "CircleNotOpen",
+      "msg": "This circle is no longer accepting members."
+    },
+    {
+      "code": 6008,
+      "name": "CircleNotReady",
+      "msg": "This circle is not ready to start yet. All seats must be filled first."
+    },
+    {
+      "code": 6009,
+      "name": "CircleNotActive",
+      "msg": "This circle is not currently active."
+    },
+    {
+      "code": 6010,
+      "name": "CircleNotComplete",
+      "msg": "This circle has not completed yet. All cycles must be disbursed first."
+    },
+    {
+      "code": 6011,
+      "name": "CircleAlreadyCancelled",
+      "msg": "This circle has already been cancelled."
+    },
+    {
+      "code": 6012,
+      "name": "CancelWindowNotPassed",
+      "msg": "The 24-hour cancel window has not passed yet. The circle can only be cancelled if it has not filled within 24 hours of creation."
+    },
+    {
+      "code": 6013,
+      "name": "CircleFull",
+      "msg": "This circle is full. No more members can join."
+    },
+    {
+      "code": 6014,
+      "name": "Cycle1AlreadyFunded",
+      "msg": "Cycle 1 contributions were collected at join time and cannot be paid again."
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyMember",
+      "msg": "You have already joined this circle."
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient USDC balance to join this circle. Please check your wallet and try again."
+    },
+    {
+      "code": 6017,
+      "name": "Position1WalletMissing",
+      "msg": "Position 1 wallet account is required for premium routing but was not provided."
+    },
+    {
+      "code": 6018,
+      "name": "AlreadyPaid",
+      "msg": "You have already paid your contribution for this cycle."
+    },
+    {
+      "code": 6019,
+      "name": "DeadlinePassed",
+      "msg": "The payment deadline for this cycle has passed. Your contribution cannot be accepted."
+    },
+    {
+      "code": 6020,
+      "name": "DeadlineNotPassed",
+      "msg": "The deadline for this cycle has not passed yet. Default processing is not available."
+    },
+    {
+      "code": 6021,
+      "name": "MemberAlreadyPaid",
+      "msg": "This member has already paid their contribution for this cycle."
+    },
+    {
+      "code": 6022,
+      "name": "MemberKicked",
+      "msg": "You have been removed from this circle due to collateral exhaustion and cannot make further payments."
+    },
+    {
+      "code": 6023,
+      "name": "NotAMember",
+      "msg": "You are not an active member of this circle."
+    },
+    {
+      "code": 6024,
+      "name": "InvalidPaymentRecord",
+      "msg": "You have not joined this circle and cannot make contributions."
+    },
+    {
+      "code": 6025,
+      "name": "NotAllMembersPaid",
+      "msg": "Not all active members have paid their contribution for this cycle yet."
+    },
+    {
+      "code": 6026,
+      "name": "WrongRecipient",
+      "msg": "This member is not the designated recipient for the current cycle."
+    },
+    {
+      "code": 6027,
+      "name": "AlreadyDisbursed",
+      "msg": "The pot for this cycle has already been disbursed."
+    },
+    {
+      "code": 6028,
+      "name": "MemberNotDefaulted",
+      "msg": "This member has not missed a payment. Default processing cannot be triggered."
+    },
+    {
+      "code": 6029,
+      "name": "MemberAlreadyKicked",
+      "msg": "This member has already been removed from the circle."
+    },
+    {
+      "code": 6030,
+      "name": "AlreadyClaimed",
+      "msg": "You have already claimed your collateral for this circle."
+    },
+    {
+      "code": 6031,
+      "name": "NothingToClaim",
+      "msg": "There is no collateral to claim. Your locked amount was fully used to cover missed payments."
+    },
+    {
+      "code": 6032,
+      "name": "UnauthorizedClaim",
+      "msg": "Unauthorized collateral claim. You can only claim your own collateral."
+    },
+    {
+      "code": 6033,
+      "name": "UnauthorizedMember",
+      "msg": "Unauthorized. This instruction can only be called by the member who owns this account."
+    },
+    {
+      "code": 6034,
+      "name": "MathOverflow",
+      "msg": "A calculation error occurred. This is likely a bug — please report it."
+    },
+    {
+      "code": 6035,
+      "name": "MathUnderflow",
+      "msg": "A calculation error occurred. This is likely a bug — please report it."
+    },
+    {
+      "code": 6036,
+      "name": "InvalidCycle",
+      "msg": "The specified cycle does not match the circle's current active cycle."
+    },
+    {
+      "code": 6037,
+      "name": "InvariantViolation",
+      "msg": "Collateral invariant violated. Locked collateral cannot be less than remaining obligations. This is a critical protocol error."
+    },
+    {
+      "code": 6038,
+      "name": "InvalidMint",
+      "msg": "Invalid USDC mint. This circle only accepts the configured USDC token."
+    },
+    {
+      "code": 6039,
+      "name": "InvalidTokenAccount",
+      "msg": "Invalid token account. The provided account does not match the expected owner or mint."
+    },
+    {
+      "code": 6040,
+      "name": "ProtocolNotPaused",
+      "msg": "Protocol is not currently paused."
+    },
+    {
+      "code": 6041,
+      "name": "InvalidWithdrawAmount",
+      "msg": "Withdrawal amount must be greater than zero."
+    },
+    {
+      "code": 6042,
+      "name": "InsufficientTreasuryBalance",
+      "msg": "Withdrawal amount exceeds treasury vault balance."
+    }
+  ],
+  "types": [
+    {
+      "name": "CircleAccount",
+      "docs": [
+        "CircleAccount — per-circle state PDA.",
+        "Seeds: [b\"circle\", contribution_amount.to_le_bytes(),",
+        "&[total_members], &[frequency as u8],",
+        "usdc_mint.as_ref()]",
+        "",
+        "The seed fingerprint is the duplicate prevention mechanism.",
+        "Two circles with identical parameters resolve to the same",
+        "PDA address. If that address is already in Open state,",
+        "create_circle returns a descriptive error."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "contribution_amount",
+            "docs": [
+              "Fixed contribution amount per cycle in USDC lamports.",
+              "6 decimal places: 100 USDC = 100_000_000",
+              "Set at creation. Never changes."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_members",
+            "docs": [
+              "Total number of seats in this circle.",
+              "Set at creation. Never changes. Range: 2–20."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "active_members",
+            "docs": [
+              "Number of members currently active (not kicked).",
+              "Starts equal to total_members once circle fills.",
+              "Decrements when a member is kicked via process_default.",
+              "This is what disburse_pot uses for pot calculation",
+              "and all-paid verification — not total_members."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "current_members",
+            "docs": [
+              "Number of members who have joined so far.",
+              "Used to assign positions (position = current_members + 1).",
+              "Increments on every join_circle call."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "frequency",
+            "docs": [
+              "Selected payout frequency.",
+              "Human-readable label chosen by creator."
+            ],
+            "type": {
+              "defined": {
+                "name": "PayoutFrequency"
+              }
+            }
+          },
+          {
+            "name": "cycle_duration_slots",
+            "docs": [
+              "Cycle duration in slots derived from frequency.",
+              "Daily:     216_000",
+              "Weekly:    1_512_000",
+              "Biweekly:  3_024_000",
+              "Monthly:   6_480_000",
+              "Stored here so every instruction can read it directly",
+              "without recomputing from frequency enum."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "usdc_mint",
+            "docs": [
+              "USDC mint address for this circle.",
+              "All collateral and contributions must use this mint.",
+              "Validated on every join and pay instruction."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "state",
+            "docs": [
+              "Current circle state.",
+              "Enforced as a constraint on every instruction."
+            ],
+            "type": {
+              "defined": {
+                "name": "CircleState"
+              }
+            }
+          },
+          {
+            "name": "current_cycle",
+            "docs": [
+              "Current active cycle number. 1-indexed.",
+              "0 before the circle starts.",
+              "Increments in disburse_pot after each disbursement.",
+              "When current_cycle > active_members → Completed."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "cycle_deadline_slot",
+            "docs": [
+              "Slot deadline for the current cycle's contributions.",
+              "Members must pay before this slot.",
+              "Set in start_circle for cycle 1.",
+              "Reset in disburse_pot for each subsequent cycle.",
+              "If current slot > this value, process_default is valid."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "cancel_deadline_slot",
+            "docs": [
+              "Slot after which cancel_circle can be called.",
+              "Set in create_circle as:",
+              "Clock::get().slot + CANCEL_DEADLINE_SLOTS (216_000)",
+              "Only relevant while state = Open."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "started_at_slot",
+            "docs": [
+              "Slot at which the circle transitioned to Active.",
+              "Set in start_circle. Zero before the circle starts.",
+              "Used to derive the full circle timeline on the frontend."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "completed_at_slot",
+            "docs": [
+              "Slot at which the final cycle was disbursed.",
+              "Set in disburse_pot when state transitions to Completed.",
+              "Zero until circle completes."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed. Stored to avoid recomputation."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CircleState",
+      "docs": [
+        "CircleState — the five valid states a circle can be in.",
+        "Transitions are strictly enforced — no instruction can",
+        "move a circle to an invalid state or skip a state."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Ready"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralRecord",
+      "docs": [
+        "CollateralRecord — permanent collateral audit trail PDA.",
+        "Seeds: [b\"colrec\", circle_pubkey.as_ref(), member_pubkey.as_ref()]",
+        "",
+        "Created in join_circle alongside MemberAccount.",
+        "MemberAccount tracks live state (what is locked right now).",
+        "CollateralRecord tracks history (what happened over time).",
+        "",
+        "WHY TWO ACCOUNTS?",
+        "MemberAccount.collateral_locked decrements on each default.",
+        "By circle completion it no longer reflects the original amount.",
+        "CollateralRecord preserves total_locked permanently so",
+        "claim_collateral can always compute the correct return:",
+        "claimable = total_locked - total_slashed",
+        "",
+        "This is also the account queried for transparency —",
+        "members and auditors can verify the full collateral history",
+        "for any participant in any circle at any time."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this record belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "member",
+            "docs": [
+              "The member this record belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "total_locked",
+            "docs": [
+              "Total collateral locked at join time.",
+              "Set once in join_circle. Never changes after that.",
+              "Formula: (total_members - position) × contribution_amount",
+              "For position N (last): 0",
+              "For position 1 (first): (N-1) × contribution_amount"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_released",
+            "docs": [
+              "Total collateral released back to the member.",
+              "Set in claim_collateral to the claimable amount.",
+              "0 until claim_collateral is called.",
+              "Should equal total_locked - total_slashed after claim."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_slashed",
+            "docs": [
+              "Total collateral seized through default deductions.",
+              "Increments by exactly contribution_amount per default.",
+              "Always a clean multiple of contribution_amount.",
+              "If member never defaulted: 0.",
+              "If member was kicked: equals total_locked."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "docs": [
+              "True after claim_collateral has been successfully called.",
+              "Prevents double-claiming.",
+              "Also used to verify circuit is complete in analytics."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberAccount",
+      "docs": [
+        "MemberAccount — per-member per-circle state PDA.",
+        "Seeds: [b\"member\", circle_pubkey.as_ref(), member_pubkey.as_ref()]",
+        "",
+        "Created in join_circle. Lives for the circle lifetime.",
+        "Tracks the live state of this member's participation.",
+        "One per member per circle — impossible to fake or collide",
+        "because both circle and member pubkeys are in the seeds.",
+        "",
+        "IMPORTANT: This is live state only.",
+        "The full collateral history (total_locked, total_slashed,",
+        "total_released) lives in CollateralRecord — the audit trail."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this member belongs to.",
+              "Used for cross-account validation."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "member",
+            "docs": [
+              "The member's wallet public key.",
+              "Used for permission checks and premium routing."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "docs": [
+              "Position in the payout order. 1-indexed.",
+              "Assigned at join time from current_members + 1.",
+              "Position 1 = receives pot in cycle 1.",
+              "Position N = receives pot in final cycle.",
+              "May be updated if a prior member is kicked —",
+              "positions shift down to fill the gap."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "collateral_locked",
+            "docs": [
+              "Current locked collateral in USDC lamports.",
+              "Set at join time as (total_members - position) × contribution_amount.",
+              "Decrements by exactly contribution_amount per default deduction.",
+              "Always a clean multiple of contribution_amount.",
+              "Reaches 0 only through default deductions — never from",
+              "normal operation (collateral is returned via claim_collateral",
+              "at completion, not decremented during the circle)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "has_received_pot",
+            "docs": [
+              "True once this member has received their pot disbursement.",
+              "Set in disburse_pot when current_cycle matches their position.",
+              "Used in the final completion check — all members must have",
+              "either received their pot or been kicked before COMPLETED."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "is_defaulted",
+            "docs": [
+              "True if this member has missed at least one payment.",
+              "Set in process_default.",
+              "Does NOT mean they are kicked — just that they have defaulted",
+              "at least once. They can still pay future cycles if collateral",
+              "covers the missed one(s)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "is_kicked",
+            "docs": [
+              "True if this member has been permanently removed from the circle.",
+              "Set in process_default when:",
+              "collateral_locked == 0 AND rounds still remain.",
+              "Once kicked, member cannot pay, cannot receive pot,",
+              "and cannot claim collateral (nothing left to claim).",
+              "active_members decrements in CircleAccount when this is set."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed. Stored to avoid recomputation."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PaymentRecord",
+      "docs": [
+        "PaymentRecord — per-cycle payment tracking PDA.",
+        "Seeds: [b\"payment\", circle_pubkey.as_ref(), &[cycle_number]]",
+        "",
+        "One account per cycle per circle.",
+        "Created in start_circle for cycle 1.",
+        "Created in disburse_pot for each subsequent cycle.",
+        "",
+        "WHY A BITMASK?",
+        "A u64 bitmask is the most efficient way to track N members'",
+        "payment status in a single account read.",
+        "Bit 0 = position 1 paid",
+        "Bit 1 = position 2 paid",
+        "Bit N-1 = position N paid",
+        "",
+        "To check if position P has paid:",
+        "let bit = 1u64 << (P - 1);",
+        "paid_flags & bit != 0",
+        "",
+        "To check if ALL active members have paid:",
+        "let expected = (1u64 << active_members) - 1;",
+        "paid_flags & expected == expected",
+        "",
+        "Supports up to 64 members (u64 has 64 bits).",
+        "Our max is 20 members so this is more than sufficient.",
+        "",
+        "Bits for kicked members are pre-set by process_default",
+        "so disburse_pot never blocks waiting for a kicked member.",
+        "",
+        "LIFECYCLE:",
+        "Created fresh each cycle with paid_flags = 0.",
+        "Fills up as members pay or are processed as defaulters.",
+        "Once disburse_pot fires, this record is historical.",
+        "It is never deleted — it becomes the permanent payment",
+        "history for that cycle, queryable by anyone."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "circle",
+            "docs": [
+              "The circle this record belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "cycle",
+            "docs": [
+              "The cycle number this record tracks. 1-indexed."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "paid_flags",
+            "docs": [
+              "Bitmask tracking payment status for this cycle.",
+              "Bit N = 1 means position N+1 has been covered.",
+              "Covered means: paid via pay_contribution OR",
+              "covered by collateral seizure in process_default.",
+              "Starts at 0. Fills toward the expected_mask value.",
+              "When paid_flags & expected_mask == expected_mask:",
+              "disburse_pot can fire."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutFrequency",
+      "docs": [
+        "PayoutFrequency — the four cycle duration options.",
+        "Mapped to Solana slot counts internally.",
+        "Users select a human-readable label.",
+        "The program stores both the enum and the derived slot count."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Daily"
+          },
+          {
+            "name": "Weekly"
+          },
+          {
+            "name": "Biweekly"
+          },
+          {
+            "name": "Monthly"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolConfig",
+      "docs": [
+        "ProtocolConfig — global singleton PDA",
+        "Seeds: [b\"config\"]",
+        "Created once at initialize_protocol.",
+        "Read by every single instruction via is_paused check.",
+        "Written only by admin instructions."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "The admin public key.",
+              "Only this keypair can call admin-gated instructions:",
+              "pause_protocol, unpause_protocol, update_config,",
+              "withdraw_treasury."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "protocol_fee_bps",
+            "docs": [
+              "Protocol fee in basis points.",
+              "Applied to every pot disbursement.",
+              "50 bps = 0.5% · 100 bps = 1%",
+              "Deducted from pot before recipient receives net amount."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "is_paused",
+            "docs": [
+              "Emergency pause flag.",
+              "When true, every instruction checks this first and",
+              "reverts immediately. Funds stay locked in vaults.",
+              "Only admin can flip this."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed.",
+              "Stored so we never need to recompute it."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
