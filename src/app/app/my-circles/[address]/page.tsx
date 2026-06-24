@@ -190,7 +190,7 @@ const StartCircleAction: FC<{
   circle: any;
   circleAddress: string;
   onSuccess: () => void;
-}> = ({ circle, circleAddress, onSuccess }) => {
+}> = ({ circleAddress, onSuccess }) => {
   const { publicKey } = useWallet();
   const { program } = useProgram();
   const [loading, setLoading] = useState(false);
@@ -606,6 +606,7 @@ const ProcessDefaultAction: FC<{
       const [memberPda] = deriveMemberPda(circlePda, defaulterPubkey);
       const [colRecPda] = deriveCollateralRecordPda(circlePda, defaulterPubkey);
       const [collateralVaultPda] = deriveCollateralVaultPda(circlePda);
+      const [potVaultPda] = derivePotVaultPda(circlePda);
       const [paymentRecordPda] = derivePaymentRecordPda(
         circlePda,
         circle.currentCycle
@@ -617,11 +618,13 @@ const ProcessDefaultAction: FC<{
           caller: publicKey,
           protocolConfig: configPda,
           circleAccount: circlePda,
-          defaulterAccount: memberPda,
-          collateralRecord: colRecPda,
+          defaulterMemberAccount: memberPda,
+          defaulterCollateralRecord: colRecPda,
           collateralVault: collateralVaultPda,
           paymentRecord: paymentRecordPda,
-          systemProgram: SystemProgram.programId,
+          potVault: potVaultPda,
+          defaulter: defaulterPubkey,
+          usdcMint: USDC_MINT,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc();
@@ -735,13 +738,196 @@ const ProcessDefaultAction: FC<{
   );
 };
 
+// ── Cancel circle ─────────────────────────────────────────
+const CancelCircleAction: FC<{
+  circle: any;
+  circleAddress: string;
+  myMember: any;
+  onSuccess: () => void;
+}> = ({ circleAddress, myMember, onSuccess }) => {
+  const { publicKey } = useWallet();
+  const { program } = useProgram();
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{
+    msg: string;
+    isError: boolean;
+  } | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+
+  async function handleCancel() {
+    if (!publicKey || !program || !myMember) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const circlePda = new PublicKey(circleAddress);
+      const [memberPda] = deriveMemberPda(circlePda, publicKey);
+      const [colRecPda] = deriveCollateralRecordPda(circlePda, publicKey);
+      const [collVaultPda] = deriveCollateralVaultPda(circlePda);
+      const [potVaultPda] = derivePotVaultPda(circlePda);
+      const [configPda] = deriveProtocolConfigPda();
+      const callerAta = getAssociatedTokenAddressSync(
+        USDC_MINT,
+        publicKey,
+        false,
+        TOKEN_2022_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      await program.methods
+        .cancelCircle()
+        .accountsPartial({
+          caller: publicKey,
+          protocolConfig: configPda,
+          circleAccount: circlePda,
+          callerMemberAccount: memberPda,
+          callerCollateralRecord: colRecPda,
+          collateralVault: collVaultPda,
+          potVault: potVaultPda,
+          callerTokenAccount: callerAta,
+          usdcMint: USDC_MINT,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setResult({
+        msg: "Circle cancelled. Your collateral and contributions have been returned.",
+        isError: false,
+      });
+      onSuccess();
+    } catch (err: any) {
+      const msg = err.message ?? "";
+      if (msg.includes("CancelDeadlineNotPassed")) {
+        setResult({
+          msg: "Cancel deadline has not passed yet.",
+          isError: true,
+        });
+      } else if (msg.includes("CircleNotOpen")) {
+        setResult({
+          msg: "Circle can only be cancelled while it is open.",
+          isError: true,
+        });
+      } else {
+        setResult({ msg: msg || "Cancel failed", isError: true });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <ActionCard title="Cancel Circle" color="#EF4444">
+      <p
+        style={{
+          fontSize: "13px",
+          color: "#6B6B8A",
+          marginBottom: "1rem",
+          lineHeight: "1.6",
+        }}
+      >
+        {
+          "You are the only member. You can cancel this circle and get your collateral and contribution back."
+        }
+      </p>
+      {!confirmed ? (
+        <button
+          onClick={() => setConfirmed(true)}
+          style={{
+            width: "100%",
+            padding: "13px 20px",
+            borderRadius: "12px",
+            background: "rgba(239,68,68,0.08)",
+            color: "#EF4444",
+            fontWeight: "600",
+            fontSize: "14px",
+            border: "1px solid rgba(239,68,68,0.2)",
+            cursor: "pointer",
+          }}
+        >
+          {"Cancel This Circle"}
+        </button>
+      ) : (
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+        >
+          <div
+            style={{
+              padding: "0.75rem",
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: "10px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#EF4444",
+                fontWeight: "600",
+                marginBottom: "4px",
+              }}
+            >
+              {"Are you sure?"}
+            </p>
+            <p style={{ fontSize: "12px", color: "#6B6B8A" }}>
+              {
+                "This action cannot be undone. The circle will be permanently cancelled."
+              }
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={() => setConfirmed(false)}
+              style={{
+                flex: 1,
+                padding: "11px",
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.04)",
+                color: "#6B6B8A",
+                fontWeight: "500",
+                fontSize: "13px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                cursor: "pointer",
+              }}
+            >
+              {"Keep Circle"}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "11px",
+                borderRadius: "10px",
+                background: loading
+                  ? "rgba(239,68,68,0.2)"
+                  : "rgba(239,68,68,0.8)",
+                color: "#fff",
+                fontWeight: "600",
+                fontSize: "13px",
+                border: "1px solid rgba(239,68,68,0.4)",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+            >
+              {loading ? <Spinner size={14} color="#fff" /> : null}
+              {loading ? "Cancelling..." : "Confirm Cancel"}
+            </button>
+          </div>
+        </div>
+      )}
+      <ResultMsg msg={result?.msg ?? null} isError={result?.isError ?? false} />
+    </ActionCard>
+  );
+};
+
 // ── Claim collateral ──────────────────────────────────────
 const ClaimCollateralAction: FC<{
   circle: any;
   myMember: any;
   circleAddress: string;
   onSuccess: () => void;
-}> = ({ circle, myMember, circleAddress, onSuccess }) => {
+}> = ({ myMember, circleAddress, onSuccess }) => {
   const { publicKey } = useWallet();
   const { program } = useProgram();
   const [loading, setLoading] = useState(false);
@@ -866,6 +1052,7 @@ export default function MyCircleDetailPage({
   const canInitPayRecord = isActive && circle?.currentCycle > 1;
   const canPay = isActive && !!myMember;
   const canDisburse = isActive;
+  const canCancel = isOpen && !!myMember && (circle?.currentMembers ?? 0) === 1;
   const canClaimCollateral = isCompleted && !!myMember;
 
   if (loading) {
@@ -909,7 +1096,6 @@ export default function MyCircleDetailPage({
 
   return (
     <div className="section" style={{ padding: "2.5rem 1rem" }}>
-      {/* Back */}
       <Link
         href="/app/my-circles"
         style={{
@@ -925,7 +1111,6 @@ export default function MyCircleDetailPage({
         {"← Back to my circles"}
       </Link>
 
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -1022,7 +1207,6 @@ export default function MyCircleDetailPage({
         </div>
       </div>
 
-      {/* Main grid */}
       <div
         style={{
           display: "grid",
@@ -1031,11 +1215,9 @@ export default function MyCircleDetailPage({
           alignItems: "start",
         }}
       >
-        {/* Left */}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
         >
-          {/* Overview */}
           <div
             style={{
               background: "rgba(255,255,255,0.018)",
@@ -1121,7 +1303,6 @@ export default function MyCircleDetailPage({
             </div>
           </div>
 
-          {/* Members */}
           <div
             style={{
               background: "rgba(255,255,255,0.018)",
@@ -1260,9 +1441,8 @@ export default function MyCircleDetailPage({
           </div>
         </div>
 
-        {/* Right — actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {isOpen && (
+          {isOpen && circle.currentMembers > 1 && (
             <div
               style={{
                 padding: "1.25rem",
@@ -1289,6 +1469,14 @@ export default function MyCircleDetailPage({
             </div>
           )}
 
+          {canCancel && (
+            <CancelCircleAction
+              circle={circle}
+              circleAddress={address}
+              myMember={myMember}
+              onSuccess={refetch}
+            />
+          )}
           {canStart && (
             <StartCircleAction
               circle={circle}
@@ -1296,7 +1484,6 @@ export default function MyCircleDetailPage({
               onSuccess={refetch}
             />
           )}
-
           {canInitPayRecord && (
             <InitPaymentRecordAction
               circle={circle}
@@ -1304,7 +1491,6 @@ export default function MyCircleDetailPage({
               onSuccess={refetch}
             />
           )}
-
           {canPay && (
             <PayContributionAction
               circle={circle}
@@ -1313,7 +1499,6 @@ export default function MyCircleDetailPage({
               onSuccess={refetch}
             />
           )}
-
           {canDisburse && (
             <DisbursePotAction
               circle={circle}
@@ -1322,7 +1507,6 @@ export default function MyCircleDetailPage({
               onSuccess={refetch}
             />
           )}
-
           {canDisburse && (
             <ProcessDefaultAction
               circle={circle}
@@ -1331,7 +1515,6 @@ export default function MyCircleDetailPage({
               onSuccess={refetch}
             />
           )}
-
           {canClaimCollateral && (
             <ClaimCollateralAction
               circle={circle}
