@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/circles", label: "Circles" },
   { href: "/app/my-circles", label: "My Circles" },
+  { href: "/app/admin", label: "Admin" },
 ];
 
 export const Navbar: FC = () => {
