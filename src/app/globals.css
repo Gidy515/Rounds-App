@@ -351,3 +351,15 @@ body {
 .wallet-adapter-modal-list li:hover {
   background: #1a1a28 !important;
 }
+
+/* ── Mobile responsiveness ── */
+@media (max-width: 640px) {
+  .section {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+}

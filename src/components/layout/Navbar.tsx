@@ -99,7 +99,7 @@ export const Navbar: FC = () => {
 
         {/* Nav links */}
         {!isLanding && (
-          <div style={{ display: "flex", gap: "2px" }}>
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
             {NAV_LINKS.map((link) => {
               const isActive =
                 pathname === link.href ||

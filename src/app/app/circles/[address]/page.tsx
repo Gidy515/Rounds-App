@@ -601,7 +601,7 @@ export default function CircleDetailPage({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 340px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
           gap: "1.5rem",
           alignItems: "start",
         }}

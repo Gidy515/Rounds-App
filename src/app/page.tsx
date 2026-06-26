@@ -355,7 +355,7 @@ const Hero: FC = () => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
             gap: "1px",
             background: "rgba(255,255,255,0.05)",
             borderRadius: "20px",
