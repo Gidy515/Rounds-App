@@ -417,19 +417,11 @@ export type RoundsProtocol = {
       "accounts": [
         {
           "name": "creator",
-          "docs": [
-            "The circle creator — automatically becomes position 1.",
-            "Pays rent for CircleAccount, CollateralVault, PotVault."
-          ],
           "writable": true,
           "signer": true
         },
         {
           "name": "protocolConfig",
-          "docs": [
-            "ProtocolConfig — read to check is_paused.",
-            "Seeds: [b\"config\"]"
-          ],
           "pda": {
             "seeds": [
               {
@@ -449,33 +441,18 @@ export type RoundsProtocol = {
         {
           "name": "circleAccount",
           "docs": [
-            "CircleAccount PDA — the circle's source of truth.",
-            "",
-            "Seeds are derived from the circle's parameters:",
-            "[b\"circle\", contribution_amount, total_members,",
-            "frequency as u8, usdc_mint pubkey]",
-            "",
-            "This seed fingerprint is the duplicate prevention",
-            "mechanism. Two circles with identical parameters",
-            "resolve to the same PDA address. Anchor's `init`",
-            "constraint will reject the transaction if the",
-            "account already exists — meaning an open circle",
-            "with these exact settings already exists.",
-            "",
-            "If you hit this error, join that circle instead."
+            "CircleAccount PDA.",
+            "Seeds now include a nonce — allows multiple circles",
+            "with identical parameters to coexist sequentially.",
+            "Frontend finds the correct nonce automatically:",
+            "nonce 0 = first circle, nonce 1 = second, etc.",
+            "A new circle at nonce N is only valid when nonce N-1",
+            "is no longer Open (full, active, completed, or cancelled)."
           ],
           "writable": true
         },
         {
           "name": "collateralVault",
-          "docs": [
-            "CollateralVault — USDC token account PDA.",
-            "Holds all member collateral for this circle.",
-            "Seeds: [b\"collateral_vault\", circle_account pubkey]",
-            "Authority: circle_account PDA — program controlled.",
-            "Never touched during normal operation.",
-            "Only moves on default deduction or circle completion."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -509,13 +486,6 @@ export type RoundsProtocol = {
         },
         {
           "name": "potVault",
-          "docs": [
-            "PotVault — USDC token account PDA.",
-            "Accumulates cycle contributions before disbursement.",
-            "Seeds: [b\"pot_vault\", circle_account pubkey]",
-            "Authority: circle_account PDA — program controlled.",
-            "Fills each cycle, zeroes completely after disburse_pot."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -541,12 +511,7 @@ export type RoundsProtocol = {
           }
         },
         {
-          "name": "usdcMint",
-          "docs": [
-            "USDC mint — validated against token program.",
-            "Stored in CircleAccount so every subsequent instruction",
-            "can verify incoming token accounts against this mint."
-          ]
+          "name": "usdcMint"
         },
         {
           "name": "systemProgram",
@@ -576,6 +541,10 @@ export type RoundsProtocol = {
               "name": "payoutFrequency"
             }
           }
+        },
+        {
+          "name": "nonce",
+          "type": "u8"
         }
       ]
     },
@@ -2339,6 +2308,15 @@ export type RoundsProtocol = {
             "name": "bump",
             "docs": [
               "PDA bump seed. Stored to avoid recomputation."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Nonce — allows multiple circles with identical parameters.",
+              "Increments when the previous circle at nonce N-1 is full.",
+              "Frontend finds the correct nonce automatically."
             ],
             "type": "u8"
           }

@@ -7,15 +7,14 @@ import {
 } from "@solana/spl-token";
 import { PROGRAM_ID, USDC_MINT, CONFIG_PDA } from "./constants";
 
-// REPLACE with:
+// Circle PDA derivation
 export function deriveCirclePda(
   contributionAmount: BN,
   totalMembers: number,
   frequency: number,
+  nonce: number = 0,
   usdcMint: PublicKey = USDC_MINT
 ): [PublicKey, number] {
-  // Use BN's toArrayLike to write little-endian u64
-  // Buffer.alloc writeBigUInt64LE is not available in browser
   const amountBuffer = contributionAmount.toArrayLike(Buffer, "le", 8);
 
   return PublicKey.findProgramAddressSync(
@@ -25,6 +24,7 @@ export function deriveCirclePda(
       Buffer.from([totalMembers]),
       Buffer.from([frequency]),
       usdcMint.toBuffer(),
+      Buffer.from([nonce]),
     ],
     PROGRAM_ID
   );

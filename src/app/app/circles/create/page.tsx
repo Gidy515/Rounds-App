@@ -4,6 +4,7 @@ import { FC, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProgram } from "@/hooks/useProgram";
+import { PublicKey } from "@solana/web3.js";
 import {
   deriveCirclePda,
   deriveCollateralVaultPda,
@@ -281,52 +282,51 @@ export default function CreateCirclePage() {
       );
       const freqArg = freqOption?.value ?? { weekly: {} };
 
+      // ── Find the right nonce ──────────────────────────────
+      let nonce = 0;
+      let circlePda = PublicKey.default;
+      let foundSlot = false;
+
+      while (nonce < 255) {
+        const [pda] = deriveCirclePda(amountBN, totalMembers, freqNum, nonce);
+
+        try {
+          const existing = await program.account.circleAccount.fetch(pda);
+          const stateKey = Object.keys(existing.state)[0];
+
+          if (stateKey === "open") {
+            setError(
+              "An open circle with these parameters already exists. Redirecting you to join it..."
+            );
+            setTimeout(
+              () => router.push(`/app/circles/${pda.toBase58()}`),
+              1500
+            );
+            return;
+          }
+          // Circle is full/active/completed/cancelled — try next nonce
+          nonce++;
+        } catch {
+          // No circle at this nonce — safe to create here
+          circlePda = pda;
+          foundSlot = true;
+          break;
+        }
+      }
+
+      if (!foundSlot) {
+        setError(
+          "All slots for these parameters are occupied. Try different parameters."
+        );
+        return;
+      }
+
       const [configPda] = deriveProtocolConfigPda();
-      const [circlePda] = deriveCirclePda(amountBN, totalMembers, freqNum);
       const [collateralVaultPda] = deriveCollateralVaultPda(circlePda);
       const [potVaultPda] = derivePotVaultPda(circlePda);
 
-      // ── Pre-flight check — does this circle already exist? ──
-      try {
-        const existing = await program.account.circleAccount.fetch(circlePda);
-        const stateKey = Object.keys(existing.state)[0];
-
-        if (stateKey === "open") {
-          setError(
-            "A circle with these parameters is currently open and accepting members. " +
-              "Browse circles to find and join it."
-          );
-        } else if (stateKey === "ready") {
-          setError(
-            "A circle with these parameters is full and ready to start. " +
-              "Change any parameter to create a new one."
-          );
-        } else if (stateKey === "active") {
-          setError(
-            "A circle with these parameters is currently active and running. " +
-              "Change any parameter to create a new one."
-          );
-        } else if (stateKey === "completed") {
-          // Circle completed — allow creation of a new one with same params
-          // This should not hit because a completed circle's PDA still exists
-          // but in practice the program will reject it anyway
-          setError(
-            "A circle with these parameters has already completed. " +
-              "Change any parameter to create a fresh circle."
-          );
-        } else {
-          setError(
-            "A circle with these parameters already exists. " +
-              "Change the contribution amount, member count, or frequency."
-          );
-        }
-        return;
-      } catch {
-        // Account does not exist — safe to create
-      }
-
       const sig = await program.methods
-        .createCircle(amountBN, totalMembers, freqArg as any)
+        .createCircle(amountBN, totalMembers, freqArg as any, nonce)
         .accountsPartial({
           creator: publicKey,
           protocolConfig: configPda,
@@ -345,10 +345,7 @@ export default function CreateCirclePage() {
     } catch (err: any) {
       const msg = err.message ?? "";
       if (msg.includes("insufficient funds") || msg.includes("0x1")) {
-        setError(
-          "Insufficient SOL to pay transaction fees. " +
-            "Use the faucet on the dashboard to get devnet SOL."
-        );
+        setError("Insufficient SOL. Use the faucet on the dashboard.");
       } else {
         setError(msg || "Transaction failed — please try again.");
       }
@@ -356,6 +353,7 @@ export default function CreateCirclePage() {
       setLoading(false);
     }
   }
+
   // ── Step 3: Success ──────────────────────────────────────
   if (step === 3 && txSig) {
     return (
