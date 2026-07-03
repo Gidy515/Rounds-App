@@ -9,13 +9,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format USDC amount (6 decimals) to human readable
-export function formatUsdc(lamports: BN | number | bigint): string {
-  const amount =
-    typeof lamports === "bigint"
-      ? Number(lamports)
-      : typeof lamports === "number"
-      ? lamports
-      : lamports.toNumber();
+export function formatUsdc(lamports: any): string {
+  let amount: number;
+
+  if (lamports === null || lamports === undefined) {
+    amount = 0;
+  } else if (typeof lamports === "bigint") {
+    amount = Number(lamports);
+  } else if (typeof lamports === "number") {
+    amount = lamports;
+  } else if (typeof lamports === "object" && "toNumber" in lamports) {
+    amount = lamports.toNumber();
+  } else if (typeof lamports === "object" && "words" in lamports) {
+    // Raw BN from BorshAccountsCoder
+    const BN = require("bn.js");
+    amount = new BN(lamports).toNumber();
+  } else {
+    amount = Number(lamports);
+  }
 
   const usdc = amount / 1_000_000;
 

@@ -61,7 +61,6 @@ export function useMyCircles() {
           const circleData = await program.account.circleAccount.fetch(
             memberAcc.account.circle
           );
-
           myCircles.push({
             address: memberAcc.account.circle,
             contributionAmount: circleData.contributionAmount,
@@ -77,6 +76,7 @@ export function useMyCircles() {
             startedAtSlot: circleData.startedAtSlot,
             completedAtSlot: circleData.completedAtSlot,
             bump: circleData.bump,
+            nonce: (circleData as any).nonce ?? 0, // ← ADD THIS
             memberAccount: memberAcc.account,
             memberPda: memberAcc.publicKey,
             position: memberAcc.account.position,

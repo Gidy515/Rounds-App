@@ -191,7 +191,7 @@ export default function Dashboard() {
   const { circles: myCircles, loading: myLoading } = useMyCircles();
   const { circles: allCircles, loading: allLoading } = useAllCircles();
 
-  const activeCircles = myCircles.filter((c) => c.state?.active);
+  //const activeCircles = myCircles.filter((c) => c.state?.active);
   const completedCircles = myCircles.filter((c) => c.state?.completed);
   const openCircles = allCircles.filter((c) => c.state?.open || c.state?.ready);
 
@@ -276,13 +276,6 @@ export default function Dashboard() {
           sub="total joined"
           color="#7C3AED"
           icon="⭕"
-        />
-        <StatCard
-          label="Active"
-          value={myLoading ? "—" : activeCircles.length.toString()}
-          sub="in progress"
-          color="#10B981"
-          icon="⚡"
         />
         <StatCard
           label="Completed"
