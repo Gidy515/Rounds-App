@@ -593,6 +593,24 @@ export default function CircleDetailPage({
             >
               {"View on Explorer"}
             </span>
+            <Link
+              href={`/app/collateral/${address}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "9px 16px",
+                borderRadius: "10px",
+                background: "rgba(16,185,129,0.08)",
+                border: "1px solid rgba(16,185,129,0.2)",
+                color: "#10B981",
+                fontSize: "13px",
+                fontWeight: "500",
+                textDecoration: "none",
+              }}
+            >
+              {"📈 View Yield"}
+            </Link>
           </span>
         </div>
       </div>

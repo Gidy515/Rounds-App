@@ -204,15 +204,29 @@ const MyCircleCard: FC<{ circle: MyCircleData }> = ({ circle }) => {
           }}
         >
           <StateBadge state={circle.state} />
-          <span
-            style={{
-              fontSize: "11px",
-              color: "#3A3A5C",
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            {truncateAddress(circle.address.toBase58(), 6)}
-          </span>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <Link
+              href={`/app/collateral/${circle.address.toBase58()}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                fontSize: "11px",
+                color: "#10B981",
+                textDecoration: "none",
+                fontWeight: "500",
+              }}
+            >
+              {"📈 Yield"}
+            </Link>
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#3A3A5C",
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            >
+              {truncateAddress(circle.address.toBase58(), 6)}
+            </span>
+          </div>
         </div>
       </div>
     </Link>
