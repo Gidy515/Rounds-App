@@ -285,7 +285,7 @@ const Hero: FC = () => {
           }}
         >
           Rounds Protocol brings the ancient West African rotating savings
-          tradition — Adashe, Ajo, Esusu — onchain. Trustless. Non-custodial.
+          tradition — Adashe, Ajo, Esusu — brought onchain. Trustless. Non-custodial.
           Mathematically enforced.
         </p>
 
@@ -485,7 +485,7 @@ const ProtocolFlow: FC = () => {
       title: "Claim Collateral",
       body: "After the final disbursement the circle is Completed. Every member claims their collateral independently. Never defaulted? Full refund. Each slash was exactly one contribution amount.",
       detail:
-        "CollateralRecord PDA: total_locked = total_released + total_slashed. Immutable. Permanent.",
+        "Every contribution and collateral movement is permanently recorded and verifiable by anyone.",
     },
   ];
 
@@ -637,13 +637,13 @@ const Features: FC = () => {
       icon: "🏛️",
       title: "Non-Custodial",
       color: "#10B981",
-      body: "All funds in program-derived PDAs. No admin key touches vaults. The program ID is the sole authority.",
+      body: "All funds are held in smart contract vaults. No admin can touch member funds. The protocol is the sole authority.",
     },
     {
       icon: "📋",
       title: "Immutable Audit Trail",
       color: "#EF4444",
-      body: "CollateralRecord: total_locked = total_released + total_slashed. Permanently onchain. Verifiable by anyone.",
+      body: "Every collateral movement is permanently recorded and publicly verifiable on Solana.",
     },
     {
       icon: "🔄",

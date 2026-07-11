@@ -441,7 +441,7 @@ export default function MyYieldPage() {
           value={`${totalCollateralUsdc.toFixed(2)} USDC`}
           sub="active circles only"
           color="#F59E0B"
-          icon="🔒"
+          icon="lock"
         />
         <StatCard
           label="Live Kamino APY"
@@ -452,21 +452,21 @@ export default function MyYieldPage() {
           }
           sub="USDC lending rate"
           color="#10B981"
-          icon="📈"
+          icon="yield"
         />
         <StatCard
           label="Projected Annual Yield"
           value={`${totalAnnualYield.toFixed(2)} USDC`}
           sub="at current APY"
           color="#06B6D4"
-          icon="💰"
+          icon="money"
         />
         <StatCard
           label="Estimated Earned"
           value={`~${totalEarned.toFixed(6)} USDC`}
           sub="active circles only"
           color="#A78BFA"
-          icon="✨"
+          icon="star"
         />
       </div>
 
@@ -591,8 +591,18 @@ export default function MyYieldPage() {
           </div>
         ) : visibleCircles.length === 0 ? (
           <div style={{ textAlign: "center", padding: "4rem 2rem" }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>
-              {"🔒"}
+            <div style={{ marginBottom: "0.75rem" }}>
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#5C5C7A"
+                strokeWidth="1.5"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
             </div>
             <p
               style={{

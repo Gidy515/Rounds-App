@@ -1,7 +1,8 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
 import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useAllCircles, CircleData } from "@/hooks/useAllCircles";
 import { StateBadge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -12,271 +13,368 @@ import {
   explorerUrl,
 } from "@/lib/utils";
 
-// ── Filters ───────────────────────────────────────────────
 type StateFilter = "all" | "open" | "ready" | "active" | "completed";
 type FreqFilter = "all" | "daily" | "weekly" | "biweekly" | "monthly";
 
+function getDismissedKey(wallet: string) {
+  return `rounds_dismissed_circles_${wallet}`;
+}
+function loadDismissed(wallet: string): string[] {
+  try {
+    const s = localStorage.getItem(getDismissedKey(wallet));
+    return s ? JSON.parse(s) : [];
+  } catch {
+    return [];
+  }
+}
+function saveDismissed(wallet: string, list: string[]) {
+  try {
+    localStorage.setItem(getDismissedKey(wallet), JSON.stringify(list));
+  } catch {}
+}
+
 // ── Circle card ───────────────────────────────────────────
-const CircleCard: FC<{ circle: CircleData }> = ({ circle }) => {
+const CircleCard: FC<{
+  circle: CircleData;
+  onDismiss?: (addr: string) => void;
+}> = ({ circle, onDismiss }) => {
   const fillPct =
     circle.totalMembers > 0
       ? Math.round((circle.currentMembers / circle.totalMembers) * 100)
       : 0;
-
   const stateKey = Object.keys(circle.state)[0];
+  const isDismissable = stateKey === "completed" || stateKey === "cancelled";
+
+  const accentColor =
+    stateKey === "active"
+      ? "#10B981"
+      : stateKey === "ready"
+      ? "#F59E0B"
+      : stateKey === "completed"
+      ? "#06B6D4"
+      : stateKey === "cancelled"
+      ? "#EF4444"
+      : "#7C3AED";
 
   return (
-    <Link
-      href={`/app/circles/${circle.address.toBase58()}`}
-      style={{ textDecoration: "none" }}
-    >
-      <div
-        style={{
-          background: "rgba(255,255,255,0.018)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "20px",
-          padding: "1.5rem",
-          cursor: "pointer",
-          transition: "all 0.25s",
-          position: "relative",
-          overflow: "hidden",
-          height: "100%",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "rgba(124,58,237,0.3)";
-          el.style.background = "rgba(124,58,237,0.04)";
-          el.style.transform = "translateY(-2px)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "rgba(255,255,255,0.06)";
-          el.style.background = "rgba(255,255,255,0.018)";
-          el.style.transform = "translateY(0)";
-        }}
-      >
-        {/* Top gradient line */}
-        <div
+    <div style={{ position: "relative" }}>
+      {/* Dismiss X button */}
+      {isDismissable && onDismiss && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss(circle.address.toBase58());
+          }}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "2px",
-            background:
-              stateKey === "active"
-                ? "linear-gradient(90deg, #10B981, transparent)"
-                : stateKey === "ready"
-                ? "linear-gradient(90deg, #F59E0B, transparent)"
-                : "linear-gradient(90deg, #7C3AED, transparent)",
+            top: "12px",
+            right: "12px",
+            zIndex: 10,
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            background: "rgba(239,68,68,0.12)",
+            border: "1px solid rgba(239,68,68,0.25)",
+            color: "#EF4444",
+            fontSize: "15px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+            transition: "all 0.15s",
           }}
-        />
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.25)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.12)";
+          }}
+          title="Hide from view"
+        >
+          ×
+        </button>
+      )}
 
-        {/* Header row */}
+      <Link
+        href={`/app/circles/${circle.address.toBase58()}`}
+        style={{ textDecoration: "none" }}
+      >
         <div
           style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: "1.25rem",
-            gap: "0.75rem",
+            background: "rgba(255,255,255,0.018)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "20px",
+            padding: "1.5rem",
+            cursor: "pointer",
+            transition: "all 0.25s",
+            position: "relative",
+            overflow: "hidden",
+            height: "100%",
+            opacity: isDismissable ? 0.85 : 1,
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = `${accentColor}35`;
+            el.style.background = `${accentColor}08`;
+            el.style.transform = "translateY(-3px)";
+            el.style.boxShadow = `0 8px 30px ${accentColor}15`;
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = "rgba(255,255,255,0.06)";
+            el.style.background = "rgba(255,255,255,0.018)";
+            el.style.transform = "translateY(0)";
+            el.style.boxShadow = "none";
           }}
         >
+          {/* Top gradient line */}
           <div
             style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "12px",
-              background:
-                "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2))",
-              border: "1px solid rgba(124,58,237,0.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "20px",
-              flexShrink: 0,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background: `linear-gradient(90deg, ${accentColor}, transparent)`,
             }}
-          >
-            ⭕
-          </div>
-          <StateBadge state={circle.state} />
-        </div>
+          />
 
-        {/* Contribution amount */}
-        <div
-          style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: "1.5rem",
-            fontWeight: "700",
-            color: "#F0F0FF",
-            marginBottom: "2px",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {formatUsdc(circle.contributionAmount)}
-          <span
+          {/* Header */}
+          <div
             style={{
-              fontSize: "14px",
-              color: "#6B6B8A",
-              fontWeight: "400",
-              marginLeft: "4px",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              marginBottom: "1.25rem",
+              gap: "0.75rem",
+              paddingRight: isDismissable ? "24px" : "0",
             }}
           >
-            USDC
-          </span>
-        </div>
-
-        <div
-          style={{
-            fontSize: "13px",
-            color: "#6B6B8A",
-            marginBottom: "1.25rem",
-          }}
-        >
-          per member · {formatFrequency(circle.frequency)}
-        </div>
-
-        {/* Stats row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0.75rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          {[
-            {
-              label: "Members",
-              value: `${circle.currentMembers}/${circle.totalMembers}`,
-            },
-            {
-              label: "Cycle",
-              value:
-                circle.currentCycle > 0
-                  ? `${circle.currentCycle}/${circle.activeMembers}`
-                  : "—",
-            },
-            {
-              label: "Collateral",
-              value: `${formatUsdc(
-                (circle.totalMembers - 1) * circle.contributionAmount.toNumber()
-              )} max`,
-            },
-            { label: "Frequency", value: formatFrequency(circle.frequency) },
-          ].map((s) => (
             <div
-              key={s.label}
               style={{
-                background: "rgba(255,255,255,0.025)",
-                borderRadius: "8px",
-                padding: "0.6rem 0.75rem",
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: `linear-gradient(135deg, ${accentColor}20, rgba(6,182,212,0.1))`,
+                border: `1px solid ${accentColor}20`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src="/rounds-icon.jpg"
+                alt=""
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "6px",
+                  objectFit: "cover",
+                }}
+              />
+            </div>
+            <StateBadge state={circle.state} />
+          </div>
+
+          {/* Amount */}
+          <div
+            style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: "1.5rem",
+              fontWeight: "700",
+              color: "#F0F0FF",
+              marginBottom: "2px",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {formatUsdc(circle.contributionAmount)}
+            <span
+              style={{
+                fontSize: "14px",
+                color: "#6B6B8A",
+                fontWeight: "400",
+                marginLeft: "4px",
+              }}
+            >
+              USDC
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              color: "#6B6B8A",
+              marginBottom: "1.25rem",
+            }}
+          >
+            per member · {formatFrequency(circle.frequency)}
+          </div>
+
+          {/* Stats grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+              marginBottom: "1.25rem",
+            }}
+          >
+            {[
+              {
+                label: "Members",
+                value: `${circle.currentMembers}/${circle.totalMembers}`,
+              },
+              {
+                label: "Cycle",
+                value:
+                  circle.currentCycle > 0
+                    ? `${circle.currentCycle}/${circle.activeMembers}`
+                    : "—",
+              },
+              {
+                label: "Max Lock",
+                value: `${formatUsdc(
+                  (circle.totalMembers - 1) *
+                    circle.contributionAmount.toNumber()
+                )} USDC`,
+              },
+              { label: "Frequency", value: formatFrequency(circle.frequency) },
+            ].map((s) => (
+              <div
+                key={s.label}
+                style={{
+                  background: "rgba(255,255,255,0.025)",
+                  borderRadius: "8px",
+                  padding: "0.6rem 0.75rem",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#5C5C7A",
+                    marginBottom: "2px",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {s.label.toUpperCase()}
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#A0A0B8",
+                    fontWeight: "500",
+                  }}
+                >
+                  {s.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "6px",
+              }}
+            >
+              <span style={{ fontSize: "12px", color: "#5C5C7A" }}>
+                Seats filled
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#A0A0B8",
+                  fontWeight: "600",
+                }}
+              >
+                {fillPct}%
+              </span>
+            </div>
+            <div
+              style={{
+                height: "4px",
+                borderRadius: "2px",
+                background: "rgba(255,255,255,0.06)",
+                overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  fontSize: "11px",
-                  color: "#5C5C7A",
-                  marginBottom: "2px",
-                  letterSpacing: "0.04em",
+                  height: "100%",
+                  width: `${fillPct}%`,
+                  borderRadius: "2px",
+                  background:
+                    fillPct === 100
+                      ? "linear-gradient(90deg, #10B981, #06B6D4)"
+                      : `linear-gradient(90deg, ${accentColor}, ${accentColor}80)`,
+                  transition: "width 0.6s ease",
                 }}
-              >
-                {s.label.toUpperCase()}
-              </div>
-              <div
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#3A3A5C",
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            >
+              {truncateAddress(circle.address.toBase58(), 6)}
+            </span>
+            <div
+              style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}
+            >
+              <Link
+                href={`/app/collateral/${circle.address.toBase58()}`}
+                onClick={(e) => e.stopPropagation()}
                 style={{
-                  fontSize: "13px",
-                  color: "#A0A0B8",
+                  fontSize: "11px",
+                  color: "#10B981",
+                  textDecoration: "none",
                   fontWeight: "500",
                 }}
               >
-                {s.value}
-              </div>
+                Yield →
+              </Link>
+              <span
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(
+                    explorerUrl(circle.address.toBase58()),
+                    "_blank",
+                    "noreferrer"
+                  );
+                }}
+                style={{
+                  fontSize: "11px",
+                  color: "#7C3AED",
+                  cursor: "pointer",
+                }}
+              >
+                Explorer
+              </span>
             </div>
-          ))}
-        </div>
-
-        {/* Fill progress bar */}
-        <div style={{ marginBottom: "1rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "6px",
-            }}
-          >
-            <span style={{ fontSize: "12px", color: "#5C5C7A" }}>
-              Seats filled
-            </span>
-            <span
-              style={{ fontSize: "12px", color: "#A0A0B8", fontWeight: "600" }}
-            >
-              {fillPct}%
-            </span>
-          </div>
-          <div
-            style={{
-              height: "4px",
-              borderRadius: "2px",
-              background: "rgba(255,255,255,0.06)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${fillPct}%`,
-                borderRadius: "2px",
-                background:
-                  fillPct === 100
-                    ? "linear-gradient(90deg, #10B981, #06B6D4)"
-                    : "linear-gradient(90deg, #7C3AED, #A78BFA)",
-                transition: "width 0.6s ease",
-              }}
-            />
           </div>
         </div>
-
-        {/* Address */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "11px",
-              color: "#3A3A5C",
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            {truncateAddress(circle.address.toBase58(), 6)}
-          </span>
-
-          <span
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              window.open(
-                explorerUrl(circle.address.toBase58()),
-                "_blank",
-                "noreferrer"
-              );
-            }}
-            style={{
-              fontSize: "11px",
-              color: "#7C3AED",
-              textDecoration: "none",
-              cursor: "pointer",
-            }}
-          >
-            {"Explorer"}
-          </span>
-        </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 };
 
@@ -301,48 +399,60 @@ const FilterPill: FC<{
         : "1px solid rgba(255,255,255,0.05)",
       cursor: "pointer",
       transition: "all 0.15s",
-      whiteSpace: "nowrap",
+      whiteSpace: "nowrap" as const,
     }}
   >
     {label}
   </button>
 );
 
-// ── Main page ─────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────
 export default function CirclesPage() {
+  const { publicKey } = useWallet();
   const { circles, loading, error, refetch } = useAllCircles();
-
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [freqFilter, setFreqFilter] = useState<FreqFilter>("all");
   const [search, setSearch] = useState("");
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
-  // Apply filters
-  const filtered = circles.filter((c) => {
+  useEffect(() => {
+    if (!publicKey) return;
+    setDismissed(loadDismissed(publicKey.toBase58()));
+  }, [publicKey]);
+
+  function handleDismiss(addr: string) {
+    if (!publicKey) return;
+    const updated = [...dismissed, addr];
+    setDismissed(updated);
+    saveDismissed(publicKey.toBase58(), updated);
+  }
+
+  const visible = circles.filter(
+    (c) => !dismissed.includes(c.address.toBase58())
+  );
+
+  const filtered = visible.filter((c) => {
     const stateKey = Object.keys(c.state)[0];
-
     if (stateFilter !== "all" && stateKey !== stateFilter) return false;
-
     if (freqFilter !== "all") {
-      const freqKey = Object.keys(c.frequency)[0];
-      if (freqKey !== freqFilter) return false;
+      const fk = Object.keys(c.frequency)[0];
+      if (fk !== freqFilter) return false;
     }
-
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       const addr = c.address.toBase58().toLowerCase();
       const amt = formatUsdc(c.contributionAmount).toLowerCase();
       if (!addr.includes(q) && !amt.includes(q)) return false;
     }
-
     return true;
   });
 
   const counts = {
-    all: circles.length,
-    open: circles.filter((c) => c.state?.open).length,
-    ready: circles.filter((c) => c.state?.ready).length,
-    active: circles.filter((c) => c.state?.active).length,
-    completed: circles.filter((c) => c.state?.completed).length,
+    all: visible.length,
+    open: visible.filter((c) => c.state?.open).length,
+    ready: visible.filter((c) => c.state?.ready).length,
+    active: visible.filter((c) => c.state?.active).length,
+    completed: visible.filter((c) => c.state?.completed).length,
   };
 
   return (
@@ -372,10 +482,9 @@ export default function CirclesPage() {
             Savings Circles
           </h1>
           <p style={{ color: "#6B6B8A", fontSize: "14px" }}>
-            {loading ? "Loading..." : `${circles.length} circles found`}
+            {loading ? "Loading..." : `${visible.length} circles`}
           </p>
         </div>
-
         <Link
           href="/app/circles/create"
           style={{
@@ -407,7 +516,6 @@ export default function CirclesPage() {
 
       {/* Search + filters */}
       <div style={{ marginBottom: "2rem" }}>
-        {/* Search bar */}
         <div style={{ position: "relative", marginBottom: "1rem" }}>
           <svg
             width="16"
@@ -449,8 +557,6 @@ export default function CirclesPage() {
             }}
           />
         </div>
-
-        {/* State filters */}
         <div
           style={{
             display: "flex",
@@ -476,8 +582,6 @@ export default function CirclesPage() {
             />
           ))}
         </div>
-
-        {/* Frequency filters */}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <span
             style={{
@@ -523,7 +627,7 @@ export default function CirclesPage() {
         >
           <Spinner size={32} />
           <p style={{ color: "#6B6B8A", fontSize: "14px" }}>
-            Loading circles from devnet...
+            Loading circles...
           </p>
         </div>
       ) : error ? (
@@ -541,8 +645,15 @@ export default function CirclesPage() {
           </p>
           <button
             onClick={refetch}
-            className="btn-secondary"
-            style={{ fontSize: "14px" }}
+            style={{
+              padding: "9px 20px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#A0A0B8",
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
           >
             Retry
           </button>
@@ -557,7 +668,19 @@ export default function CirclesPage() {
             borderRadius: "20px",
           }}
         >
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⭕</div>
+          <div style={{ marginBottom: "1.25rem" }}>
+            <img
+              src="/rounds-icon.jpg"
+              alt=""
+              style={{
+                width: "56px",
+                height: "56px",
+                borderRadius: "14px",
+                objectFit: "cover",
+                opacity: 0.35,
+              }}
+            />
+          </div>
           <h3
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
@@ -608,7 +731,7 @@ export default function CirclesPage() {
               marginBottom: "1.25rem",
             }}
           >
-            Showing {filtered.length} of {circles.length} circles
+            Showing {filtered.length} of {visible.length} circles
           </p>
           <div
             style={{
@@ -617,8 +740,12 @@ export default function CirclesPage() {
               gap: "1.25rem",
             }}
           >
-            {filtered.map((circle) => (
-              <CircleCard key={circle.address.toBase58()} circle={circle} />
+            {filtered.map((c) => (
+              <CircleCard
+                key={c.address.toBase58()}
+                circle={c}
+                onDismiss={handleDismiss}
+              />
             ))}
           </div>
         </>

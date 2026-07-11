@@ -11,8 +11,8 @@ const NAV_LINKS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/circles", label: "Circles" },
   { href: "/app/my-circles", label: "My Circles" },
-  { href: "/app/admin", label: "Admin" },
   { href: "/app/collateral", label: "Yield" },
+  { href: "/app/admin", label: "Admin" },
 ];
 
 export const Navbar: FC = () => {
@@ -31,7 +31,7 @@ export const Navbar: FC = () => {
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
-        backgroundColor: "rgba(8, 8, 16, 0.85)",
+        backgroundColor: "rgba(8,8,16,0.88)",
       }}
     >
       <div
@@ -53,24 +53,17 @@ export const Navbar: FC = () => {
             textDecoration: "none",
           }}
         >
-          <div
+          <img
+            src="/rounds-icon.jpg"
+            alt="Rounds"
             style={{
               width: "32px",
               height: "32px",
               borderRadius: "9px",
-              background: "linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "15px",
-              fontWeight: "700",
-              color: "white",
-              fontFamily: "'Space Grotesk', sans-serif",
-              boxShadow: "0 0 20px rgba(124,58,237,0.4)",
+              objectFit: "cover",
+              boxShadow: "0 0 16px rgba(124,58,237,0.45)",
             }}
-          >
-            R
-          </div>
+          />
           <span
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
@@ -124,6 +117,20 @@ export const Navbar: FC = () => {
                       ? "1px solid rgba(124,58,237,0.2)"
                       : "1px solid transparent",
                   }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.color = "#A78BFA";
+                      (e.currentTarget as HTMLElement).style.background =
+                        "rgba(124,58,237,0.06)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.color = "#5C5C7A";
+                      (e.currentTarget as HTMLElement).style.background =
+                        "transparent";
+                    }
+                  }}
                 >
                   {link.label}
                 </Link>
@@ -132,7 +139,7 @@ export const Navbar: FC = () => {
           </div>
         )}
 
-        {/* Right side */}
+        {/* Right */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {publicKey && (
             <div

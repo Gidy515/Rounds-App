@@ -1,6 +1,6 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState, useEffect } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMyCircles, MyCircleData } from "@/hooks/useMyCircles";
@@ -8,9 +8,30 @@ import { StateBadge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { formatUsdc, formatFrequency, truncateAddress } from "@/lib/utils";
 
+function getDismissedKey(wallet: string) {
+  return `rounds_dismissed_circles_${wallet}`;
+}
+function loadDismissed(wallet: string): string[] {
+  try {
+    const s = localStorage.getItem(getDismissedKey(wallet));
+    return s ? JSON.parse(s) : [];
+  } catch {
+    return [];
+  }
+}
+function saveDismissed(wallet: string, list: string[]) {
+  try {
+    localStorage.setItem(getDismissedKey(wallet), JSON.stringify(list));
+  } catch {}
+}
+
 // ── Circle card ───────────────────────────────────────────
-const MyCircleCard: FC<{ circle: MyCircleData }> = ({ circle }) => {
+const MyCircleCard: FC<{
+  circle: MyCircleData;
+  onDismiss?: (addr: string) => void;
+}> = ({ circle, onDismiss }) => {
   const stateKey = Object.keys(circle.state)[0];
+  const isDismissable = stateKey === "completed" || stateKey === "cancelled";
 
   const accentColor =
     stateKey === "active"
@@ -26,210 +47,260 @@ const MyCircleCard: FC<{ circle: MyCircleData }> = ({ circle }) => {
   const needsAction = stateKey === "active" && !circle.hasReceivedPot;
 
   return (
-    <Link
-      href={`/app/my-circles/${circle.address.toBase58()}`}
-      style={{ textDecoration: "none" }}
-    >
-      <div
-        style={{
-          background: "rgba(255,255,255,0.018)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "20px",
-          padding: "1.5rem",
-          cursor: "pointer",
-          transition: "all 0.25s",
-          position: "relative",
-          overflow: "hidden",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = `${accentColor}30`;
-          el.style.background = "rgba(255,255,255,0.025)";
-          el.style.transform = "translateY(-2px)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "rgba(255,255,255,0.06)";
-          el.style.background = "rgba(255,255,255,0.018)";
-          el.style.transform = "translateY(0)";
-        }}
-      >
-        {/* Top accent */}
-        <div
+    <div style={{ position: "relative" }}>
+      {/* X dismiss button */}
+      {isDismissable && onDismiss && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss(circle.address.toBase58());
+          }}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "2px",
-            background: `linear-gradient(90deg, ${accentColor}, transparent)`,
+            top: "12px",
+            right: "12px",
+            zIndex: 10,
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            background: "rgba(239,68,68,0.12)",
+            border: "1px solid rgba(239,68,68,0.25)",
+            color: "#EF4444",
+            fontSize: "15px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+            transition: "all 0.15s",
           }}
-        />
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.25)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.12)";
+          }}
+          title="Hide from view"
+        >
+          ×
+        </button>
+      )}
 
-        {/* Action indicator */}
-        {needsAction && (
+      <Link
+        href={`/app/my-circles/${circle.address.toBase58()}`}
+        style={{ textDecoration: "none" }}
+      >
+        <div
+          style={{
+            background: "rgba(255,255,255,0.018)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "20px",
+            padding: "1.5rem",
+            cursor: "pointer",
+            transition: "all 0.25s",
+            position: "relative",
+            overflow: "hidden",
+            opacity: isDismissable ? 0.85 : 1,
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = `${accentColor}35`;
+            el.style.background = `${accentColor}08`;
+            el.style.transform = "translateY(-3px)";
+            el.style.boxShadow = `0 8px 30px ${accentColor}15`;
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = "rgba(255,255,255,0.06)";
+            el.style.background = "rgba(255,255,255,0.018)";
+            el.style.transform = "translateY(0)";
+            el.style.boxShadow = "none";
+          }}
+        >
+          {/* Top accent */}
           <div
             style={{
               position: "absolute",
-              top: "1rem",
-              right: "1rem",
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#F59E0B",
-              boxShadow: "0 0 8px #F59E0B",
-              animation: "pulse 2s infinite",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background: `linear-gradient(90deg, ${accentColor}, transparent)`,
             }}
           />
-        )}
 
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "0.75rem",
-            marginBottom: "1.25rem",
-          }}
-        >
+          {/* Pulse for action needed */}
+          {needsAction && (
+            <div
+              style={{
+                position: "absolute",
+                top: "1rem",
+                right: isDismissable ? "2.5rem" : "1rem",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#F59E0B",
+                boxShadow: "0 0 8px #F59E0B",
+                animation: "pulse 2s infinite",
+              }}
+            />
+          )}
+
+          {/* Header */}
           <div
             style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "12px",
-              background: `${accentColor}15`,
-              border: `1px solid ${accentColor}25`,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: "16px",
-              fontWeight: "700",
-              color: accentColor,
-              flexShrink: 0,
+              alignItems: "flex-start",
+              gap: "0.75rem",
+              marginBottom: "1.25rem",
+              paddingRight: isDismissable ? "24px" : "0",
             }}
           >
-            {circle.position}
-          </div>
-          <div>
             <div
               style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: `${accentColor}15`,
+                border: `1px solid ${accentColor}25`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: "1.1rem",
+                fontSize: "16px",
                 fontWeight: "700",
-                color: "#F0F0FF",
-                marginBottom: "2px",
-                letterSpacing: "-0.01em",
+                color: accentColor,
+                flexShrink: 0,
               }}
             >
-              {formatUsdc(circle.contributionAmount)}
-              {" USDC"}
+              {circle.position}
             </div>
-            <div style={{ fontSize: "13px", color: "#6B6B8A" }}>
-              {formatFrequency(circle.frequency)}
-              {" · "}
-              {circle.totalMembers}
-              {" members"}
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0.5rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          {[
-            {
-              label: "Position",
-              value: `#${circle.position} of ${circle.totalMembers}`,
-              color: accentColor,
-            },
-            {
-              label: "Cycle",
-              value:
-                circle.currentCycle > 0
-                  ? `${circle.currentCycle}/${circle.totalMembers}`
-                  : "Not started",
-              color: "#A0A0B8",
-            },
-            {
-              label: "Collateral",
-              value: `${formatUsdc(circle.collateralLocked)} USDC`,
-              color: "#A0A0B8",
-            },
-            {
-              label: "Pot status",
-              value: circle.hasReceivedPot ? "Received" : "Pending",
-              color: circle.hasReceivedPot ? "#10B981" : "#6B6B8A",
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                borderRadius: "8px",
-                padding: "0.6rem 0.75rem",
-              }}
-            >
+            <div>
               <div
                 style={{
-                  fontSize: "11px",
-                  color: "#5C5C7A",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: "1.1rem",
+                  fontWeight: "700",
+                  color: "#F0F0FF",
                   marginBottom: "2px",
-                  letterSpacing: "0.04em",
+                  letterSpacing: "-0.01em",
                 }}
               >
-                {s.label.toUpperCase()}
+                {formatUsdc(circle.contributionAmount)} USDC
               </div>
-              <div
-                style={{ fontSize: "13px", color: s.color, fontWeight: "500" }}
-              >
-                {s.value}
+              <div style={{ fontSize: "13px", color: "#6B6B8A" }}>
+                {formatFrequency(circle.frequency)} · {circle.totalMembers}{" "}
+                members
               </div>
             </div>
-          ))}
-        </div>
+          </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <StateBadge state={circle.state} />
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <Link
-              href={`/app/collateral/${circle.address.toBase58()}`}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                fontSize: "11px",
-                color: "#10B981",
-                textDecoration: "none",
-                fontWeight: "500",
-              }}
+          {/* Stats */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.5rem",
+              marginBottom: "1.25rem",
+            }}
+          >
+            {[
+              {
+                label: "Position",
+                value: `#${circle.position} of ${circle.totalMembers}`,
+                color: accentColor,
+              },
+              {
+                label: "Cycle",
+                value:
+                  circle.currentCycle > 0
+                    ? `${circle.currentCycle}/${circle.totalMembers}`
+                    : "Not started",
+                color: "#A0A0B8",
+              },
+              {
+                label: "Locked",
+                value: `${formatUsdc(circle.collateralLocked)} USDC`,
+                color: "#A0A0B8",
+              },
+              {
+                label: "Payout",
+                value: circle.hasReceivedPot ? "Received" : "Pending",
+                color: circle.hasReceivedPot ? "#10B981" : "#6B6B8A",
+              },
+            ].map((s) => (
+              <div
+                key={s.label}
+                style={{
+                  background: "rgba(255,255,255,0.025)",
+                  borderRadius: "8px",
+                  padding: "0.6rem 0.75rem",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#5C5C7A",
+                    marginBottom: "2px",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {s.label.toUpperCase()}
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: s.color,
+                    fontWeight: "500",
+                  }}
+                >
+                  {s.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <StateBadge state={circle.state} />
+            <div
+              style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
             >
-              {"📈 Yield"}
-            </Link>
-            <span
-              style={{
-                fontSize: "11px",
-                color: "#3A3A5C",
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            >
-              {truncateAddress(circle.address.toBase58(), 6)}
-            </span>
+              <Link
+                href={`/app/collateral/${circle.address.toBase58()}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: "11px",
+                  color: "#10B981",
+                  textDecoration: "none",
+                  fontWeight: "500",
+                }}
+              >
+                Yield →
+              </Link>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#3A3A5C",
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {truncateAddress(circle.address.toBase58(), 6)}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 };
 
@@ -244,7 +315,19 @@ const EmptyState: FC = () => (
       borderRadius: "20px",
     }}
   >
-    <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{"⭕"}</div>
+    <div style={{ marginBottom: "1rem" }}>
+      <img
+        src="/rounds-icon.jpg"
+        alt=""
+        style={{
+          width: "56px",
+          height: "56px",
+          borderRadius: "14px",
+          objectFit: "cover",
+          opacity: 0.35,
+        }}
+      />
+    </div>
     <h3
       style={{
         fontFamily: "'Space Grotesk', sans-serif",
@@ -254,7 +337,7 @@ const EmptyState: FC = () => (
         marginBottom: "0.5rem",
       }}
     >
-      {"No circles yet"}
+      No circles yet
     </h3>
     <p
       style={{
@@ -264,9 +347,8 @@ const EmptyState: FC = () => (
         lineHeight: "1.6",
       }}
     >
-      {
-        "You have not joined any savings circles. Browse open circles or create your own."
-      }
+      You have not joined any savings circles. Browse open circles or create
+      your own.
     </p>
     <div
       style={{
@@ -292,7 +374,7 @@ const EmptyState: FC = () => (
           textDecoration: "none",
         }}
       >
-        {"Browse Circles"}
+        Browse Circles
       </Link>
       <Link
         href="/app/circles/create"
@@ -310,7 +392,7 @@ const EmptyState: FC = () => (
           textDecoration: "none",
         }}
       >
-        {"Create Circle"}
+        Create Circle
       </Link>
     </div>
   </div>
@@ -320,11 +402,27 @@ const EmptyState: FC = () => (
 export default function MyCirclesPage() {
   const { publicKey } = useWallet();
   const { circles, loading, error, refetch } = useMyCircles();
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
-  const active = circles.filter((c) => c.state?.active);
-  const open = circles.filter((c) => c.state?.open || c.state?.ready);
-  const completed = circles.filter((c) => c.state?.completed);
-  const cancelled = circles.filter((c) => c.state?.cancelled);
+  useEffect(() => {
+    if (!publicKey) return;
+    setDismissed(loadDismissed(publicKey.toBase58()));
+  }, [publicKey]);
+
+  function handleDismiss(addr: string) {
+    if (!publicKey) return;
+    const updated = [...dismissed, addr];
+    setDismissed(updated);
+    saveDismissed(publicKey.toBase58(), updated);
+  }
+
+  const visible = circles.filter(
+    (c) => !dismissed.includes(c.address.toBase58())
+  );
+  const active = visible.filter((c) => c.state?.active);
+  const open = visible.filter((c) => c.state?.open || c.state?.ready);
+  const completed = visible.filter((c) => c.state?.completed);
+  const cancelled = visible.filter((c) => c.state?.cancelled);
 
   return (
     <div className="section" style={{ padding: "2.5rem 1rem" }}>
@@ -350,17 +448,14 @@ export default function MyCirclesPage() {
               marginBottom: "0.25rem",
             }}
           >
-            {"My Circles"}
+            My Circles
           </h1>
           <p style={{ color: "#6B6B8A", fontSize: "14px" }}>
             {loading
               ? "Loading..."
-              : `${circles.length} circle${
-                  circles.length !== 1 ? "s" : ""
-                } total`}
+              : `${visible.length} circle${visible.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-
         <div style={{ display: "flex", gap: "0.75rem" }}>
           <button
             onClick={refetch}
@@ -377,7 +472,7 @@ export default function MyCirclesPage() {
               gap: "6px",
             }}
           >
-            {"↻ Refresh"}
+            ↻ Refresh
           </button>
           <Link
             href="/app/circles"
@@ -395,13 +490,13 @@ export default function MyCirclesPage() {
               border: "1px solid rgba(124,58,237,0.5)",
             }}
           >
-            {"Browse More"}
+            Browse More
           </Link>
         </div>
       </div>
 
       {/* Summary stats */}
-      {circles.length > 0 && (
+      {visible.length > 0 && (
         <div
           style={{
             display: "grid",
@@ -424,6 +519,16 @@ export default function MyCirclesPage() {
                 borderRadius: "12px",
                 padding: "1rem",
                 textAlign: "center",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                (
+                  e.currentTarget as HTMLElement
+                ).style.borderColor = `${s.color}30`;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.borderColor =
+                  "rgba(255,255,255,0.06)";
               }}
             >
               <div
@@ -444,7 +549,7 @@ export default function MyCirclesPage() {
                   color: "#5C5C7A",
                   fontWeight: "500",
                   letterSpacing: "0.05em",
-                  textTransform: "uppercase",
+                  textTransform: "uppercase" as const,
                 }}
               >
                 {s.label}
@@ -468,7 +573,7 @@ export default function MyCirclesPage() {
         >
           <Spinner size={32} />
           <p style={{ color: "#6B6B8A", fontSize: "14px" }}>
-            {"Loading your circles..."}
+            Loading your circles...
           </p>
         </div>
       ) : error ? (
@@ -482,7 +587,7 @@ export default function MyCirclesPage() {
           }}
         >
           <p style={{ color: "#EF4444", marginBottom: "1rem" }}>
-            {"Failed to load circles"}
+            Failed to load circles
           </p>
           <button
             onClick={refetch}
@@ -496,14 +601,13 @@ export default function MyCirclesPage() {
               cursor: "pointer",
             }}
           >
-            {"Retry"}
+            Retry
           </button>
         </div>
-      ) : circles.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-          {/* Active */}
           {active.length > 0 && (
             <div>
               <h2
@@ -528,7 +632,7 @@ export default function MyCirclesPage() {
                     display: "inline-block",
                   }}
                 />
-                {"Active Circles"}
+                Active Circles
               </h2>
               <div
                 style={{
@@ -538,13 +642,16 @@ export default function MyCirclesPage() {
                 }}
               >
                 {active.map((c) => (
-                  <MyCircleCard key={c.address.toBase58()} circle={c} />
+                  <MyCircleCard
+                    key={c.address.toBase58()}
+                    circle={c}
+                    onDismiss={handleDismiss}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Open / Ready */}
           {open.length > 0 && (
             <div>
               <h2
@@ -556,7 +663,7 @@ export default function MyCirclesPage() {
                   marginBottom: "1rem",
                 }}
               >
-                {"Waiting to Start"}
+                Waiting to Start
               </h2>
               <div
                 style={{
@@ -566,13 +673,16 @@ export default function MyCirclesPage() {
                 }}
               >
                 {open.map((c) => (
-                  <MyCircleCard key={c.address.toBase58()} circle={c} />
+                  <MyCircleCard
+                    key={c.address.toBase58()}
+                    circle={c}
+                    onDismiss={handleDismiss}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Completed */}
           {completed.length > 0 && (
             <div>
               <h2
@@ -584,7 +694,7 @@ export default function MyCirclesPage() {
                   marginBottom: "1rem",
                 }}
               >
-                {"Completed"}
+                Completed
               </h2>
               <div
                 style={{
@@ -594,13 +704,16 @@ export default function MyCirclesPage() {
                 }}
               >
                 {completed.map((c) => (
-                  <MyCircleCard key={c.address.toBase58()} circle={c} />
+                  <MyCircleCard
+                    key={c.address.toBase58()}
+                    circle={c}
+                    onDismiss={handleDismiss}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Cancelled */}
           {cancelled.length > 0 && (
             <div>
               <h2
@@ -612,7 +725,7 @@ export default function MyCirclesPage() {
                   marginBottom: "1rem",
                 }}
               >
-                {"Cancelled"}
+                Cancelled
               </h2>
               <div
                 style={{
@@ -622,7 +735,11 @@ export default function MyCirclesPage() {
                 }}
               >
                 {cancelled.map((c) => (
-                  <MyCircleCard key={c.address.toBase58()} circle={c} />
+                  <MyCircleCard
+                    key={c.address.toBase58()}
+                    circle={c}
+                    onDismiss={handleDismiss}
+                  />
                 ))}
               </div>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState, useEffect } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMyCircles } from "@/hooks/useMyCircles";
@@ -14,6 +14,126 @@ import {
   truncateAddress,
   explorerUrl,
 } from "@/lib/utils";
+
+// ── SVG icon set ──────────────────────────────────────────
+const Icon: FC<{ name: string; size?: number; color?: string }> = ({
+  name,
+  size = 16,
+  color = "currentColor",
+}) => {
+  const s = { width: size, height: size };
+  if (name === "circle")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <circle
+          cx="12"
+          cy="12"
+          r="5"
+          stroke={color}
+          strokeWidth="1.5"
+          opacity="0.4"
+        />
+      </svg>
+    );
+  if (name === "check")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+      >
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    );
+  if (name === "unlock")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <rect x="3" y="11" width="18" height="11" rx="2" />
+        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+      </svg>
+    );
+  if (name === "plus")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    );
+  if (name === "search")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+    );
+  if (name === "link")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+    );
+  if (name === "trend")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+      </svg>
+    );
+  if (name === "my")
+    return (
+      <svg
+        {...s}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+      >
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+      </svg>
+    );
+  return null;
+};
 
 // ── Stat card ─────────────────────────────────────────────
 const StatCard: FC<{
@@ -31,6 +151,19 @@ const StatCard: FC<{
       padding: "1.5rem",
       position: "relative",
       overflow: "hidden",
+      transition: "all 0.2s",
+    }}
+    onMouseEnter={(e) => {
+      (e.currentTarget as HTMLElement).style.borderColor = `${color}30`;
+      (
+        e.currentTarget as HTMLElement
+      ).style.background = `rgba(255,255,255,0.028)`;
+    }}
+    onMouseLeave={(e) => {
+      (e.currentTarget as HTMLElement).style.borderColor =
+        "rgba(255,255,255,0.06)";
+      (e.currentTarget as HTMLElement).style.background =
+        "rgba(255,255,255,0.018)";
     }}
   >
     <div
@@ -54,7 +187,9 @@ const StatCard: FC<{
       <span style={{ fontSize: "13px", color: "#6B6B8A", fontWeight: "500" }}>
         {label}
       </span>
-      <span style={{ fontSize: "20px" }}>{icon}</span>
+      <span style={{ color, opacity: 0.8 }}>
+        <Icon name={icon} size={18} color={color} />
+      </span>
     </div>
     <div
       style={{
@@ -68,7 +203,11 @@ const StatCard: FC<{
     >
       {value}
     </div>
-    {sub && <div style={{ fontSize: "12px", color: "#5C5C7A" }}>{sub}</div>}
+    {sub && (
+      <div style={{ fontSize: "12px", color: "#5C5C7A", marginTop: "4px" }}>
+        {sub}
+      </div>
+    )}
   </div>
 );
 
@@ -88,9 +227,9 @@ const CircleRow: FC<{ circle: any; isMyCircle?: boolean }> = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "1rem 1.25rem",
+          padding: "0.875rem 1.1rem",
           borderRadius: "12px",
-          background: "rgba(255,255,255,0.015)",
+          background: "rgba(255,255,255,0.012)",
           border: "1px solid rgba(255,255,255,0.05)",
           cursor: "pointer",
           transition: "all 0.2s",
@@ -99,35 +238,43 @@ const CircleRow: FC<{ circle: any; isMyCircle?: boolean }> = ({
           gap: "0.75rem",
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor =
-            "rgba(124,58,237,0.25)";
-          (e.currentTarget as HTMLElement).style.background =
-            "rgba(124,58,237,0.04)";
+          const el = e.currentTarget as HTMLElement;
+          el.style.borderColor = "rgba(124,58,237,0.35)";
+          el.style.background = "rgba(124,58,237,0.06)";
+          el.style.transform = "translateX(3px)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor =
-            "rgba(255,255,255,0.05)";
-          (e.currentTarget as HTMLElement).style.background =
-            "rgba(255,255,255,0.015)";
+          const el = e.currentTarget as HTMLElement;
+          el.style.borderColor = "rgba(255,255,255,0.05)";
+          el.style.background = "rgba(255,255,255,0.012)";
+          el.style.transform = "translateX(0)";
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
           <div
             style={{
-              width: "40px",
-              height: "40px",
+              width: "38px",
+              height: "38px",
               borderRadius: "10px",
               background:
-                "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2))",
+                "linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.15))",
               border: "1px solid rgba(124,58,237,0.2)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "18px",
               flexShrink: 0,
             }}
           >
-            ⭕
+            <img
+              src="/rounds-icon.jpg"
+              alt=""
+              style={{
+                width: "22px",
+                height: "22px",
+                borderRadius: "5px",
+                objectFit: "cover",
+              }}
+            />
           </div>
           <div>
             <div
@@ -153,7 +300,6 @@ const CircleRow: FC<{ circle: any; isMyCircle?: boolean }> = ({
             </div>
           </div>
         </div>
-
         <div
           style={{
             display: "flex",
@@ -173,7 +319,7 @@ const CircleRow: FC<{ circle: any; isMyCircle?: boolean }> = ({
               {circle.currentMembers}/{circle.totalMembers} members
             </div>
             {isMyCircle && (
-              <div style={{ fontSize: "12px", color: "#6B6B8A" }}>
+              <div style={{ fontSize: "12px", color: "#7C3AED" }}>
                 Position {circle.position}
               </div>
             )}
@@ -185,13 +331,72 @@ const CircleRow: FC<{ circle: any; isMyCircle?: boolean }> = ({
   );
 };
 
+// ── Quick link item ───────────────────────────────────────
+const QuickLink: FC<{
+  label: string;
+  href: string;
+  icon: string;
+  external?: boolean;
+}> = ({ label, href, icon, external }) => {
+  const inner = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "10px 14px",
+        borderRadius: "10px",
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.04)",
+        color: "#6B6B8A",
+        fontSize: "13px",
+        textDecoration: "none",
+        transition: "all 0.15s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.background = "rgba(124,58,237,0.07)";
+        el.style.borderColor = "rgba(124,58,237,0.2)";
+        el.style.color = "#A78BFA";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.background = "rgba(255,255,255,0.02)";
+        el.style.borderColor = "rgba(255,255,255,0.04)";
+        el.style.color = "#6B6B8A";
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+        <Icon name={icon} size={14} />
+      </span>
+      <span>{label}</span>
+    </div>
+  );
+  if (external)
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        style={{ textDecoration: "none" }}
+      >
+        {inner}
+      </a>
+    );
+  return (
+    <Link href={href} style={{ textDecoration: "none" }}>
+      {inner}
+    </Link>
+  );
+};
+
 // ── Dashboard ─────────────────────────────────────────────
 export default function Dashboard() {
   const { publicKey } = useWallet();
   const { circles: myCircles, loading: myLoading } = useMyCircles();
   const { circles: allCircles, loading: allLoading } = useAllCircles();
 
-  const activeCircles = myCircles.filter((c) => c.state?.active);
   const completedCircles = myCircles.filter((c) => c.state?.completed);
   const openCircles = allCircles.filter((c) => c.state?.open || c.state?.ready);
 
@@ -228,10 +433,11 @@ export default function Dashboard() {
               fontFamily: "'JetBrains Mono', monospace",
             }}
           >
-            {publicKey ? truncateAddress(publicKey.toBase58(), 8) : ""}
+            {publicKey
+              ? truncateAddress(publicKey.toBase58(), 8)
+              : "Connect your wallet"}
           </p>
         </div>
-
         <Link
           href="/app/circles/create"
           style={{
@@ -249,14 +455,7 @@ export default function Dashboard() {
             border: "1px solid rgba(124,58,237,0.5)",
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M8 2v12M2 8h12"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Icon name="plus" size={16} color="#fff" />
           Create Circle
         </Link>
       </div>
@@ -275,28 +474,28 @@ export default function Dashboard() {
           value={myLoading ? "—" : myCircles.length.toString()}
           sub="total joined"
           color="#7C3AED"
-          icon="⭕"
-        />
-        <StatCard
-          label="Active"
-          value={myLoading ? "—" : activeCircles.length.toString()}
-          sub="in progress"
-          color="#10B981"
-          icon="⚡"
+          icon="my"
         />
         <StatCard
           label="Completed"
           value={myLoading ? "—" : completedCircles.length.toString()}
           sub="finished"
           color="#06B6D4"
-          icon="✓"
+          icon="check"
         />
         <StatCard
           label="Open Circles"
           value={allLoading ? "—" : openCircles.length.toString()}
           sub="available to join"
           color="#F59E0B"
-          icon="🔓"
+          icon="unlock"
+        />
+        <StatCard
+          label="Yield"
+          value="Active"
+          sub="Kamino · live APY"
+          color="#10B981"
+          icon="trend"
         />
       </div>
 
@@ -309,11 +508,11 @@ export default function Dashboard() {
           alignItems: "start",
         }}
       >
-        {/* Left — circles */}
+        {/* Left */}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
         >
-          {/* My active circles */}
+          {/* My circles */}
           <div
             style={{
               background: "rgba(255,255,255,0.018)",
@@ -352,7 +551,6 @@ export default function Dashboard() {
                 View all
               </Link>
             </div>
-
             {myLoading ? (
               <div
                 style={{
@@ -365,8 +563,18 @@ export default function Dashboard() {
               </div>
             ) : myCircles.length === 0 ? (
               <div style={{ textAlign: "center", padding: "2.5rem 1rem" }}>
-                <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>
-                  ⭕
+                <div style={{ marginBottom: "1rem" }}>
+                  <img
+                    src="/rounds-icon.jpg"
+                    alt=""
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "12px",
+                      objectFit: "cover",
+                      opacity: 0.35,
+                    }}
+                  />
                 </div>
                 <p
                   style={{
@@ -399,12 +607,8 @@ export default function Dashboard() {
             ) : (
               myCircles
                 .slice(0, 5)
-                .map((circle) => (
-                  <CircleRow
-                    key={circle.address.toBase58()}
-                    circle={circle}
-                    isMyCircle
-                  />
+                .map((c) => (
+                  <CircleRow key={c.address.toBase58()} circle={c} isMyCircle />
                 ))
             )}
           </div>
@@ -448,7 +652,6 @@ export default function Dashboard() {
                 View all
               </Link>
             </div>
-
             {allLoading ? (
               <div
                 style={{
@@ -492,9 +695,7 @@ export default function Dashboard() {
             ) : (
               openCircles
                 .slice(0, 5)
-                .map((circle) => (
-                  <CircleRow key={circle.address.toBase58()} circle={circle} />
-                ))
+                .map((c) => <CircleRow key={c.address.toBase58()} circle={c} />)
             )}
           </div>
         </div>
@@ -503,7 +704,6 @@ export default function Dashboard() {
         <div
           style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
         >
-          {/* Faucet */}
           <Faucet />
 
           {/* Quick links */}
@@ -533,71 +733,24 @@ export default function Dashboard() {
                 gap: "0.5rem",
               }}
             >
-              {[
-                {
-                  label: "Create a circle",
-                  href: "/app/circles/create",
-                  icon: "➕",
-                },
-                {
-                  label: "Browse all circles",
-                  href: "/app/circles",
-                  icon: "🔍",
-                },
-                { label: "My circles", href: "/app/my-circles", icon: "⭕" },
-                {
-                  label: "View on Explorer",
-                  href: explorerUrl(process.env.NEXT_PUBLIC_PROGRAM_ID ?? ""),
-                  icon: "🔗",
-                  external: true,
-                },
-              ].map((link) =>
-                link.external ? (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "9px 12px",
-                      borderRadius: "9px",
-                      background: "rgba(255,255,255,0.02)",
-                      border: "1px solid rgba(255,255,255,0.04)",
-                      color: "#6B6B8A",
-                      fontSize: "13px",
-                      textDecoration: "none",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <span>{link.icon}</span>
-                    {link.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={link.label}
-                    href={link.href}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "9px 12px",
-                      borderRadius: "9px",
-                      background: "rgba(255,255,255,0.02)",
-                      border: "1px solid rgba(255,255,255,0.04)",
-                      color: "#6B6B8A",
-                      fontSize: "13px",
-                      textDecoration: "none",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <span>{link.icon}</span>
-                    {link.label}
-                  </Link>
-                )
-              )}
+              <QuickLink
+                label="Create a circle"
+                href="/app/circles/create"
+                icon="plus"
+              />
+              <QuickLink
+                label="Browse all circles"
+                href="/app/circles"
+                icon="search"
+              />
+              <QuickLink label="My circles" href="/app/my-circles" icon="my" />
+              <QuickLink label="My yield" href="/app/collateral" icon="trend" />
+              <QuickLink
+                label="View on Explorer"
+                href={explorerUrl(process.env.NEXT_PUBLIC_PROGRAM_ID ?? "")}
+                icon="link"
+                external
+              />
             </div>
           </div>
 
@@ -619,7 +772,7 @@ export default function Dashboard() {
                 marginBottom: "0.75rem",
               }}
             >
-              Program Info
+              Protocol Info
             </h3>
             <div
               style={{
@@ -630,7 +783,7 @@ export default function Dashboard() {
             >
               {[
                 {
-                  label: "Program ID",
+                  label: "Contract",
                   value: truncateAddress(
                     process.env.NEXT_PUBLIC_PROGRAM_ID ?? "",
                     6
