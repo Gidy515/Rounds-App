@@ -340,18 +340,22 @@ const CircleCard: FC<{
             <div
               style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}
             >
-              <Link
-                href={`/app/collateral/${circle.address.toBase58()}`}
-                onClick={(e) => e.stopPropagation()}
+              <span
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.location.href = `/app/collateral/${circle.address.toBase58()}`;
+                }}
                 style={{
                   fontSize: "11px",
                   color: "#10B981",
                   textDecoration: "none",
                   fontWeight: "500",
+                  cursor: "pointer",
                 }}
               >
                 Yield →
-              </Link>
+              </span>{" "}
               <span
                 onClick={(e) => {
                   e.preventDefault();
